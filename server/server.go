@@ -26,6 +26,7 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/logger"
 	"github.com/fabiocicerchia/go-proxy-cache/server/balancer"
 	"github.com/fabiocicerchia/go-proxy-cache/server/handler"
+	"github.com/fabiocicerchia/go-proxy-cache/server/jwt"
 	srvtls "github.com/fabiocicerchia/go-proxy-cache/server/tls"
 	"github.com/fabiocicerchia/go-proxy-cache/telemetry/metrics"
 	"github.com/fabiocicerchia/go-proxy-cache/telemetry/tracing"
@@ -138,10 +139,19 @@ func InitInternals() *http.Server {
 func InitServer(domain string, domainConfig config.Configuration) *http.Server {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
-
 	// basic
 	var muxMiddleware http.Handler = mux
+
+	handlerRequest := tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request")
+	handlerJTW := jwt.JwtHandler(mux)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerJTW.ServeHTTP(w, r)
+		handlerRequest.ServeHTTP(w, r)
+	})
+
+	mux.HandleFunc("/", handler)
+
 
 	// timeout middleware
 	// NOTE: THIS IS FOR EVERY DOMAIN, NO DOMAIN OVERRIDE.

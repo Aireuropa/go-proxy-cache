@@ -30,6 +30,7 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/server/handler"
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
+	"github.com/fabiocicerchia/go-proxy-cache/server/jwt"	
 )
 
 func getCommonConfig() config.Configuration {
@@ -87,6 +88,35 @@ func TestHTTPEndToEndCallRedirect(t *testing.T) {
 
 	tearDownHTTPFunctional()
 }
+
+// func TestHTTPEndToEndCallRedirectJWT(t *testing.T) {
+// 	domainID := config.Config.Server.Upstream.GetDomainID()
+// 	balancer.InitRoundRobin(domainID, config.Config.Server.Upstream, false)
+// 	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
+// 	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
+
+// 	req, err := http.NewRequest("GET", "http://127.0.0.1:50080/", nil)
+// 	// req.URL.Scheme = config.Config.Server.Upstream.Scheme
+// 	// req.URL.Host = config.Config.Server.Upstream.Host
+// 	// req.Host = config.Config.Server.Upstream.Host
+	
+// 	assert.Nil(t, err)
+
+// 	rr := httptest.NewRecorder()
+// 	h := http.HandlerFunc(handler.HandleRequest)
+
+// 	var mux http.Handler = h
+// 	jwt.JwtHandler(mux)
+
+// 	h.ServeHTTP(rr, req)
+
+// 	assert.Equal(t, http.StatusMovedPermanently, rr.Code)
+// 	assert.Equal(t, "https://testing.local/", rr.HeaderMap["Location"][0])
+// 	assert.Contains(t, rr.Body.String(), `Moved Permanently`)
+
+// 	tearDownHTTPFunctional()
+// }
+
 
 func TestHTTPEndToEndCallWithoutCache(t *testing.T) {
 	config.Config = getCommonConfig()

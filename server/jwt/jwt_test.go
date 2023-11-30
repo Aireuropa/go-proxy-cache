@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	logger "github.com/fabiocicerchia/go-proxy-cache/logger"
-
-	"github.com/lestrrat-go/jwx/jwt"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -128,4 +126,41 @@ func TestValidateJwt(t *testing.T) {
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
 
+}
+
+func TestJWTMiddleware(t *testing.T) {
+
+	// h := httptest.NewRecorder()
+
+	// server := &http.Server{
+    //     Addr:    "127.0.0.1:50080",
+    //     Handler: JwtHandler(tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request")),
+    // }
+	//defer server.Close()
+
+	req, err := http.NewRequest("GET", "http://127.0.0.1:50080", nil)
+
+
+	// server.Handler.ServeHTTP(h, req)
+
+	// Hacemos una solicitud HTTP GET al servidor de prueba
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Añadimos un token JWT válido al encabezado Authorization
+	// req.Header.Add("Authorization", "Bearer tu_token_jwt_valido")
+
+	// Realizamos la solicitud
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Verificamos que la respuesta sea 200 OK
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Esperaba un código de estado 200, pero obtuve %d", resp.StatusCode)
+	}
+	assert.Equal(t, 200, resp.StatusCode)
 }
