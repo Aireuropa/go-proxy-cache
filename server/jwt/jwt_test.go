@@ -40,15 +40,14 @@ const strExpiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiYXVkaW
 const strGoodToken = "goodToken"
 
 func TestGetScopes(t *testing.T) {
-
-	// Replace tokenWithScopes with a full token
-	tokenWithScopes, _ := CreateJwt([]byte("secret_test"))
+	// TODO: Replace tokenWithScopes with a full token
+	tokenWithScopes, _ := CreateJWT([]byte("secret_test"))
 	token, _ := jwt.ParseString(tokenWithScopes, jwt.WithTypedClaim("scope", json.RawMessage{}))
 	res := getScopes(token)
 	assert.ElementsMatch(t, res, []string{"scope1", "scope2", "scope3"}, "Scopes provided doesn't match")
 }
 
-func TestValidateJwt(t *testing.T) {
+func TestValidateJWT(t *testing.T) {
 	// Http server test
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Log("Got connection!")
@@ -74,7 +73,7 @@ func TestValidateJwt(t *testing.T) {
 	c := context.Background()
 	l := logger.GetGlobal()
 
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:  c,
 		Logger:   l,
 		Jwks_url: ts.URL + "/.bad-known/jwks.json",
@@ -82,19 +81,19 @@ func TestValidateJwt(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w := httptest.NewRecorder()
-	Validate_jwt(w, req)
+	ValidateJWT(w, req)
 	assert.Equal(t, w.Code, 401, "No token provided status code should be 401")
 	assert.Containsf(t, w.Body.String(), "failed to find a valid token in any location of the request", "No token provided status code should be 401")
 
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
 	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
-	Validate_jwt(w, req)
+	ValidateJWT(w, req)
 	assert.Equal(t, w.Code, 401, "invalid JWK set passed via WithKeySet")
 	assert.Containsf(t, w.Body.String(), "invalid JWK set passed via WithKeySet", "invalid JWK set passed via WithKeySet")
 
 	co = nil
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:  c,
 		Logger:   l,
 		Jwks_url: ts.URL + "/.well-known-test/jwks.json",
@@ -102,13 +101,13 @@ func TestValidateJwt(t *testing.T) {
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
 	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
-	Validate_jwt(w, req)
+	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 401, "exp not satisfied")
 	assert.Containsf(t, w.Body.String(), "exp not satisfied", "Token expired: exp not satisfied")
 
 	co = nil
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:  c,
 		Logger:   l,
 		Jwks_url: ts.URL + "/.well-known/jwks.json",
@@ -116,13 +115,13 @@ func TestValidateJwt(t *testing.T) {
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
 	req.Header.Add("Authorization", "Bearer "+strGoodToken)
-	Validate_jwt(w, req)
+	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 401, "exp not satisfied")
 	assert.Containsf(t, w.Body.String(), "Invalid Scope", "Invalid Scope")
 
 	co = nil
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:        c,
 		Logger:         l,
 		Jwks_url:       ts.URL + "/.well-known/jwks.json",
@@ -131,14 +130,15 @@ func TestValidateJwt(t *testing.T) {
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
 	req.Header.Add("Authorization", "Bearer "+strGoodToken)
-	Validate_jwt(w, req)
+	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
 
 }
 
-func TestJwtMiddlewareValidatesWithNoToken(t *testing.T) {
+func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
+	// TODO: Implement tags and uncomment initLogs()
 	// initLogs()
 
 	config.Config = config.Configuration{
@@ -167,7 +167,7 @@ func TestJwtMiddlewareValidatesWithNoToken(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
@@ -183,7 +183,7 @@ func TestJwtMiddlewareValidatesWithNoToken(t *testing.T) {
 	if true {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
-	h := JwtHandler(muxMiddleware)
+	h := JWTHandler(muxMiddleware)
 	
 	h.ServeHTTP(rr, req)
 
@@ -193,7 +193,8 @@ func TestJwtMiddlewareValidatesWithNoToken(t *testing.T) {
 	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
 }
 
-func TestJwtMiddlewareValidatesWithToken(t *testing.T) {
+func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
+	// TODO: Implement tags and uncomment initLogs()
 	// initLogs()
 
 	config.Config = config.Configuration{
@@ -222,10 +223,10 @@ func TestJwtMiddlewareValidatesWithToken(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 	
-	token, _ := CreateJwt([]byte("secret_test"))
+	token, _ := CreateJWT([]byte("secret_test"))
 	req.Header.Add("Authorization", "Bearer " + token)
 
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
@@ -241,7 +242,7 @@ func TestJwtMiddlewareValidatesWithToken(t *testing.T) {
 	if true {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
-	h := JwtHandler(muxMiddleware)
+	h := JWTHandler(muxMiddleware)
 	
 	h.ServeHTTP(rr, req)
 
@@ -251,7 +252,8 @@ func TestJwtMiddlewareValidatesWithToken(t *testing.T) {
 	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
 }
 
-func TestJwtMiddlewareWithoutJwtValidation(t *testing.T) {
+func TestJWTMiddlewareWithoutJWTValidation(t *testing.T) {
+	// TODO: Implement tags and uncomment initLogs()
 	// initLogs()
 
 	config.Config = config.Configuration{
@@ -279,7 +281,7 @@ func TestJwtMiddlewareWithoutJwtValidation(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
@@ -295,7 +297,7 @@ func TestJwtMiddlewareWithoutJwtValidation(t *testing.T) {
 	if true {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
-	h := JwtHandler(muxMiddleware)
+	h := JWTHandler(muxMiddleware)
 	
 	h.ServeHTTP(rr, req)
 
@@ -305,7 +307,8 @@ func TestJwtMiddlewareWithoutJwtValidation(t *testing.T) {
 	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
 }
 
-func TestJwtMiddlewareWithoutJwtAndTimeoutValidation(t *testing.T) {
+func TestJWTMiddlewareWithoutJWTAndTimeoutValidation(t *testing.T) {
+	// TODO: Implement tags and uncomment initLogs()
 	// initLogs()
 
 	config.Config = config.Configuration{
@@ -333,7 +336,7 @@ func TestJwtMiddlewareWithoutJwtAndTimeoutValidation(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	InitJwt(&config.Jwt{
+	InitJWT(&config.Jwt{
 		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
@@ -349,7 +352,7 @@ func TestJwtMiddlewareWithoutJwtAndTimeoutValidation(t *testing.T) {
 	if false {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
-	h := JwtHandler(muxMiddleware)
+	h := JWTHandler(muxMiddleware)
 	
 	h.ServeHTTP(rr, req)
 
@@ -359,7 +362,7 @@ func TestJwtMiddlewareWithoutJwtAndTimeoutValidation(t *testing.T) {
 	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
 }
 
-func TestJwtMiddlewareEndToEnd(t *testing.T) {
+func TestJWTMiddlewareEndToEnd(t *testing.T) {
 	req, _ := http.NewRequest("GET", "http://127.0.0.1:50080/", nil)
 
 	res, err := http.DefaultClient.Do(req)

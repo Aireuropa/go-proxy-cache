@@ -152,7 +152,7 @@ func InitServer(domain string, domainConfig config.Configuration) *http.Server {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
 
-	jwt.InitJwt(&config.Jwt{
+	jwt.InitJWT(&config.Jwt{
 		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
@@ -165,7 +165,7 @@ func InitServer(domain string, domainConfig config.Configuration) *http.Server {
 		WriteTimeout:      timeout.Write * time.Second,
 		IdleTimeout:       timeout.Idle * time.Second,
 		ReadHeaderTimeout: timeout.ReadHeader * time.Second,
-		Handler:           jwt.JwtHandler(muxMiddleware),
+		Handler:           jwt.JWTHandler(muxMiddleware),
 	}
 
 	return server

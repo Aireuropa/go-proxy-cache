@@ -15,7 +15,7 @@ import (
 var co *config.Jwt
 var jwtKeyFetcher *jwk.AutoRefresh
 
-func CreateJwt(key []byte) (string, error) {
+func CreateJWT(key []byte) (string, error) {
 	claims := jwt.New()
 	// claims.Set(jwt.IssuerKey, "issuer")
 	// claims.Set(jwt.AudienceKey, "audience_key")
@@ -34,7 +34,7 @@ func CreateJwt(key []byte) (string, error) {
 }
 
 
-func InitJwt(conifg *config.Jwt) {
+func InitJWT(conifg *config.Jwt) {
 
 	if co == nil {
 		co = conifg
@@ -54,7 +54,7 @@ func errorJson(resp http.ResponseWriter, statuscode int, error *config.JwtError)
 	resp.Write(json_error)
 }
 
-func Validate_jwt(w http.ResponseWriter, r *http.Request) error {
+func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 	// keyset, err := jwtKeyFetcher.Fetch(co.Context, co.Jwks_url)
 
 	token, err := jwt.ParseRequest(r,
@@ -84,10 +84,10 @@ func Validate_jwt(w http.ResponseWriter, r *http.Request) error {
 
 }
 
-func JwtHandler(next http.Handler) http.Handler {
+func JWTHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if IsIncluded(co.Included_paths, r.URL.Path) {
-			err := Validate_jwt(w, r)
+			err := ValidateJWT(w, r)
 			if err != nil {
 				return
 			}
