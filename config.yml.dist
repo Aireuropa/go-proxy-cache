@@ -296,6 +296,11 @@ log:
   # Default (empty)
   syslog_endpoint: ~
 
+# --- JWT
+jwt:
+  included_paths:
+    - /
+
 # --- TRACING
 tracing:
   # Endpoint for Local Jaeger Agent (eg: jaeger:6831)

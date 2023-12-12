@@ -1,38 +1,40 @@
 package jwt
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
+	"github.com/fabiocicerchia/go-proxy-cache/config"
 	"github.com/lestrrat-go/backoff/v2"
+	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jwt"
-	"github.com/sirupsen/logrus"
 )
 
-type JwtConfig struct {
-	Context        context.Context
-	Jwks_url       string
-	Logger         *logrus.Logger
-	Allowed_scopes []string
-	Excluded_paths []string
-}
-
-var co *JwtConfig
+var co *config.Jwt
 var jwtKeyFetcher *jwk.AutoRefresh
 
-type JwtError struct {
-	ErrorCode        string `json:"errorCode"`
-	ErrorDescription string `json:"errorDescription"`
+func CreateJwt(key []byte) (string, error) {
+	claims := jwt.New()
+	// claims.Set(jwt.IssuerKey, "issuer")
+	// claims.Set(jwt.AudienceKey, "audience_key")
+	// claims.Set(jwt.ExpirationKey, time.Now().Add(1*time.Hour))
+	// claims.Set(jwt.NotBeforeKey, time.Now().Add(-1*time.Minute))
+	// claims.Set(jwt.IssuedAtKey, time.Now())
+	// claims.Set(jwt.JwtIDKey, "token_id")
+	claims.Set("scope", []string{"scope1", "scope2", "scope3"})
+
+	token, err := jwt.Sign(claims, jwa.HS256, key)
+	if err != nil {
+		return "", err
+	}
+
+	return string(token), nil
 }
 
-type ScpClaim struct {
-	Scp []string
-}
 
-func InitJWT(conifg *JwtConfig) {
+func InitJwt(conifg *config.Jwt) {
 
 	if co == nil {
 		co = conifg
@@ -45,7 +47,7 @@ func InitJWT(conifg *JwtConfig) {
 
 }
 
-func errorJson(resp http.ResponseWriter, statuscode int, error *JwtError) {
+func errorJson(resp http.ResponseWriter, statuscode int, error *config.JwtError) {
 	resp.WriteHeader(statuscode)
 	resp.Header().Add("Content-Type", "application/json; charset=utf-8")
 	json_error, _ := json.Marshal(error)
@@ -53,49 +55,47 @@ func errorJson(resp http.ResponseWriter, statuscode int, error *JwtError) {
 }
 
 func Validate_jwt(w http.ResponseWriter, r *http.Request) error {
-	keyset, err := jwtKeyFetcher.Fetch(co.Context, co.Jwks_url)
+	// keyset, err := jwtKeyFetcher.Fetch(co.Context, co.Jwks_url)
 
 	token, err := jwt.ParseRequest(r,
-		jwt.WithKeySet(keyset),
-		jwt.WithValidate(true),
-		jwt.WithTypedClaim("scope", json.RawMessage{}),
+		// jwt.WithKeySet(keyset),
+		// jwt.WithValidate(true),
+		// jwt.WithTypedClaim("scope", json.RawMessage{}),
 	)
 	if err != nil {
-		co.Logger.Info("Error jwt:", err)
-		errorJson(w, http.StatusUnauthorized, &JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
+		// co.Logger.Info("Error jwt:", err)
+		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
 		return http.ErrAbortHandler
 	}
 
 	if err := jwt.Validate(token); err != nil {
 		co.Logger.Info("Error jwt:", err)
-		errorJson(w, http.StatusUnauthorized, &JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
+		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
 		return http.ErrAbortHandler
 	}
 
-	scopes := getScopes(token)
-	haveAllowedScope := haveAllowedScope(scopes, co.Allowed_scopes)
-	if !haveAllowedScope {
-		errorJson(w, http.StatusUnauthorized, &JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
-		return http.ErrAbortHandler
-	}
+	// scopes := getScopes(token)
+	// haveAllowedScope := haveAllowedScope(scopes, co.Allowed_scopes)
+	// if !haveAllowedScope {
+	// 	errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
+	// 	return http.ErrAbortHandler
+	// }
 	return nil
 
 }
 
 func JwtHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if IsExcluded(co.Excluded_paths, r.URL.Path) {
-			next.ServeHTTP(w, r)
-			return
-		}
-		
-		err := Validate_jwt(w, r)
-		if err != nil {
-			return
-		}
-		
-		next.ServeHTTP(w, r)
+		if IsIncluded(co.Included_paths, r.URL.Path) {
+			err := Validate_jwt(w, r)
+			if err != nil {
+				return
+			}
 
+			next.ServeHTTP(w, r)
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 

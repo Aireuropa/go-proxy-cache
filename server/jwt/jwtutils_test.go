@@ -2,6 +2,8 @@ package jwt
 
 import (
 	"testing"
+
+	"github.com/fabiocicerchia/go-proxy-cache/config"
 )
 
 func TestContains(t *testing.T) {
@@ -35,18 +37,18 @@ func TestContains(t *testing.T) {
 }
 
 func TestIsExcluded(t *testing.T) {
-	co = &JwtConfig{Excluded_paths: []string{"/a"}}
-	res := IsExcluded(co.Excluded_paths, "/a")
+	co = &config.Jwt{Included_paths: []string{"/a"}}
+	res := IsIncluded(co.Included_paths, "/a")
 	if !res {
 		t.Error("Expected false but got", res)
 	}
 
-	res = IsExcluded(co.Excluded_paths, "/b")
+	res = IsIncluded(co.Included_paths, "/b")
 	if res {
 		t.Error("Expected true  but got", res)
 	}
-	co = &JwtConfig{Excluded_paths: []string{}}
-	res = IsExcluded(co.Excluded_paths, "/b")
+	co = &config.Jwt{Included_paths: []string{}}
+	res = IsIncluded(co.Included_paths, "/b")
 	if res {
 		t.Error("Expected true  but got", res)
 	}

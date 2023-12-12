@@ -139,19 +139,10 @@ func InitInternals() *http.Server {
 func InitServer(domain string, domainConfig config.Configuration) *http.Server {
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
+	
 	// basic
 	var muxMiddleware http.Handler = mux
-
-	handlerRequest := tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request")
-	handlerJTW := jwt.JwtHandler(mux)
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handlerJTW.ServeHTTP(w, r)
-		handlerRequest.ServeHTTP(w, r)
-	})
-
-	mux.HandleFunc("/", handler)
-
 
 	// timeout middleware
 	// NOTE: THIS IS FOR EVERY DOMAIN, NO DOMAIN OVERRIDE.
@@ -161,12 +152,20 @@ func InitServer(domain string, domainConfig config.Configuration) *http.Server {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
 
+	jwt.InitJwt(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Included_paths: config.Config.Jwt.Included_paths,
+		Logger:         log.New(),
+	})
+
 	server := &http.Server{
 		ReadTimeout:       timeout.Read * time.Second,
 		WriteTimeout:      timeout.Write * time.Second,
 		IdleTimeout:       timeout.Idle * time.Second,
 		ReadHeaderTimeout: timeout.ReadHeader * time.Second,
-		Handler:           muxMiddleware,
+		Handler:           jwt.JwtHandler(muxMiddleware),
 	}
 
 	return server

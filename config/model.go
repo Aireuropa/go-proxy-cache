@@ -10,12 +10,14 @@ package config
 // Repo: https://github.com/fabiocicerchia/go-proxy-cache
 
 import (
+	"context"
 	"crypto/tls"
 	"net/http"
 	"time"
 
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuitbreaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
+	"github.com/sirupsen/logrus"
 )
 
 // DefaultTimeoutRead - Default value used for http.Server.ReadTimeout
@@ -57,6 +59,7 @@ type Configuration struct {
 	Log            Log                           `yaml:"log"`
 	Tracing        Tracing                       `yaml:"tracing"`
 	domainsCache   map[string]Configuration
+	Jwt		   	   Jwt					 		 `yaml:"jwt"`
 }
 
 // Domains - Overrides per domain.
@@ -162,6 +165,23 @@ type DomainSet struct {
 	Scheme string
 }
 
+type Jwt struct {
+	Context        context.Context
+	Jwks_url       string	`yaml:"jwks_url"`
+	Logger         *logrus.Logger
+	Allowed_scopes []string	`yaml:"allowed_scopes" envconfig:"ALLOWED_SCOPES" default:"[]string{}"`
+	Included_paths []string	`yaml:"included_paths" envconfig:"INCLUDED_PATHS" default:"[]string{}"`
+}
+
+type JwtError struct {
+	ErrorCode        string `json:"errorCode"`
+	ErrorDescription string `json:"errorDescription"`
+}
+
+type ScopeClaim struct {
+	Scope []string
+}
+
 // Config - Holds the server configuration.
 var Config Configuration = Configuration{
 	Server: Server{
@@ -233,5 +253,12 @@ var Config Configuration = Configuration{
 	Log: Log{
 		TimeFormat: "2006/01/02 15:04:05",
 		Format:     `$host - $remote_addr - $remote_user $protocol $request_method "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $cached_status_label`,
+	},
+	Jwt: Jwt{
+		Context:        context.Background(),
+		Jwks_url:       "",
+		Logger:			logrus.New(),
+		Allowed_scopes: []string{},
+		Included_paths: []string{},
 	},
 }

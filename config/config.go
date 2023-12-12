@@ -10,6 +10,7 @@ package config
 // Repo: https://github.com/fabiocicerchia/go-proxy-cache
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/jinzhu/copier"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
@@ -138,6 +140,7 @@ func (c *Configuration) CopyOverWith(overrides Configuration, file *string) {
 	c.copyOverWithCache(overrides.Cache)
 	c.copyOverWithTracing(overrides.Tracing)
 	c.copyOverWithLog(overrides.Log)
+	c.copyOverWithJwt(overrides.Jwt)
 }
 
 // --- SERVER.
@@ -215,6 +218,15 @@ func (c *Configuration) copyOverWithLog(overrides Log) {
 	c.Log.SentryDsn = utils.Coalesce(overrides.SentryDsn, c.Log.SentryDsn).(string)
 	c.Log.SyslogProtocol = utils.Coalesce(overrides.SyslogProtocol, c.Log.SyslogProtocol).(string)
 	c.Log.SyslogEndpoint = utils.Coalesce(overrides.SyslogEndpoint, c.Log.SyslogEndpoint).(string)
+}
+
+// --- JWT.
+func (c *Configuration) copyOverWithJwt(overrides Jwt) {
+	c.Jwt.Context = utils.Coalesce(overrides.Context, c.Jwt.Context).(context.Context)
+	c.Jwt.Jwks_url = utils.Coalesce(overrides.Jwks_url, c.Jwt.Jwks_url).(string)
+	c.Jwt.Logger = utils.Coalesce(overrides.Logger, c.Jwt.Logger).(*logrus.Logger)
+	c.Jwt.Allowed_scopes = utils.Coalesce(overrides.Allowed_scopes, c.Jwt.Allowed_scopes).([]string)
+	c.Jwt.Included_paths = utils.Coalesce(overrides.Included_paths, c.Jwt.Included_paths).([]string)
 }
 
 // Print - Shows the current configuration.
