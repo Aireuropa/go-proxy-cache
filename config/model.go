@@ -180,6 +180,7 @@ type JwtError struct {
 
 type ScopeClaim struct {
 	Scope []string
+	Scp   []string
 }
 
 // Config - Holds the server configuration.

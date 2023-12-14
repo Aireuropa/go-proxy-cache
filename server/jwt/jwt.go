@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -61,6 +60,7 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 		// jwt.WithKeySet(keyset),
 		jwt.WithValidate(true),
 		jwt.WithTypedClaim("scope", json.RawMessage{}),
+		jwt.WithTypedClaim("scp", json.RawMessage{}),
 	)
 	if err != nil {
 		// TODO: Uncomment co.Logger.Info
@@ -85,10 +85,7 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 }
 
 func JWTHandler(next http.Handler) http.Handler {
-	fmt.Println("------jwt handler")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("------11111")
-		fmt.Println("------Included_paths", co.Included_paths)
 		if IsIncluded(co.Included_paths, r.URL.Path) {
 			err := ValidateJWT(w, r)
 			if err != nil {
@@ -115,8 +112,17 @@ func haveAllowedScope(scopes []string, allowed_scopes []string) bool {
 }
 
 func getScopes(token jwt.Token) []string {
-	scpInterface := token.PrivateClaims()["scope"]
-	scpRaw, _ := scpInterface.(json.RawMessage)
+	_, isScp := token.Get("scp")
+	if isScp {
+		scpInterface := token.PrivateClaims()["scp"]
+		return extractScopes(scpInterface)
+	}
+	scopeInterface := token.PrivateClaims()["scope"]
+	return extractScopes(scopeInterface)
+}
+
+func extractScopes(scopesInterface interface{}) []string {
+	scpRaw, _ := scopesInterface.(json.RawMessage)
 	scopes := []string{}
 	json.Unmarshal(scpRaw, &scopes)
 	return scopes

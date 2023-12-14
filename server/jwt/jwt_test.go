@@ -40,10 +40,41 @@ func getCommonConfig() config.Configuration {
 			Context:        context.Background(),
 			Logger:         log.New(),
 			Allowed_scopes: []string{"scope1"},
-			Included_paths: []string{"/"},
+			Included_paths: []string{},
 		},
 	}
 }
+
+func CreateJWTTest(key []byte) (string, error) {
+	claims := jwt.New()
+	claims.Set("scope", []string{"scope1", "scope2", "scope3"})
+	claims.Set(jwt.ExpirationKey, time.Now().Add(1*time.Hour))
+
+	token, err := jwt.Sign(claims, jwa.HS256, key)
+	if err != nil {
+		return "", err
+	}
+
+	return string(token), nil
+}
+
+func CreateJWTTestWithScpClaim(key []byte) (string, error) {
+	claims := jwt.New()
+	claims.Set("scp", []string{"scope1", "scope2", "scope3"})
+	claims.Set(jwt.ExpirationKey, time.Now().Add(1*time.Hour))
+
+	token, err := jwt.Sign(claims, jwa.HS256, key)
+	if err != nil {
+		return "", err
+	}
+
+	return string(token), nil
+}
+
+// TODO: Replace strExpiredToken and strGoodToken with a token when jwt creation method is finished
+const strExpiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDI1NDY5MzIsInNjb3BlIjpbInNjb3BlMSIsInNjb3BlMiIsInNjb3BlMyJdfQ.aMxdJwdO79AXKlWoRvBYbzqHx_WhN_HyMZBAvS8zsOw"
+var strGoodToken,_ = CreateJWTTest([]byte("secret_test"))
+var scpGoodToken,_ = CreateJWTTestWithScpClaim([]byte("secret_test"))
 
 func TestAllowedScope(t *testing.T) {
 	co := &config.Jwt{Allowed_scopes: []string{"admin"}}
@@ -60,27 +91,18 @@ func TestAllowedScope(t *testing.T) {
 	assert.Equal(t, res, false, "Empty scopes and empty allowed scopes, should be false")
 }
 
-func CreateJWTTest(key []byte) (string, error) {
-	claims := jwt.New()
-	claims.Set("scope", []string{"scope1", "scope2", "scope3"})
-	claims.Set(jwt.ExpirationKey, time.Now().Add(1*time.Hour))
+func TestGetScopesWithScopeClaim(t *testing.T) {
+	token, _ := jwt.ParseString(strExpiredToken, jwt.WithTypedClaim("scope", json.RawMessage{}))
 
-	token, err := jwt.Sign(claims, jwa.HS256, key)
-	if err != nil {
-		return "", err
-	}
+	res := getScopes(token)
 
-	return string(token), nil
+	assert.ElementsMatch(t, res, []string{"scope1", "scope2", "scope3"}, "Scopes provided doesn't match")
 }
 
-// TODO: Replace strExpiredToken and strGoodToken with a token when jwt creation method is finished
-const strExpiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDI1NDY5MzIsInNjb3BlIjpbInNjb3BlMSIsInNjb3BlMiIsInNjb3BlMyJdfQ.aMxdJwdO79AXKlWoRvBYbzqHx_WhN_HyMZBAvS8zsOw"
-var strGoodToken,_ = CreateJWTTest([]byte("secret_test"))
-
-func TestGetScopesInCaseCorrectScopesFormat(t *testing.T) {
-	test,_ := CreateJWTTest([]byte("secret_test"))
-	fmt.Println(test)
-	token, _ := jwt.ParseString(strExpiredToken, jwt.WithTypedClaim("scope", json.RawMessage{}))
+func TestGetScopesWithScpClaim(t *testing.T) {
+	scpClaimToken,_ := CreateJWTTestWithScpClaim([]byte("secret_test"))
+	fmt.Println(scpClaimToken)
+	token, _ := jwt.ParseString(scpClaimToken, jwt.WithTypedClaim("scp", json.RawMessage{}))
 
 	res := getScopes(token)
 
@@ -176,11 +198,27 @@ func TestValidateJWT(t *testing.T) {
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
 
+	co = nil
+	InitJWT(&config.Jwt{
+		Context:        c,
+		Logger:         l,
+		Jwks_url:       ts.URL + "/.well-known/jwks.json",
+		Allowed_scopes: []string{"scope1"},
+	})
+	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
+	w = httptest.NewRecorder()
+	req.Header.Add("Authorization", "Bearer "+scpGoodToken)
+	ValidateJWT(w, req)
+
+	assert.Equal(t, w.Code, 200, "Status OK")
+	assert.Containsf(t, w.Body.String(), "", "Status OK")
+
 }
 
-func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 
+func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 	config.Config = getCommonConfig()
+	config.Config.Jwt.Included_paths = []string{"/"}
 
 	domainID := config.Config.Server.Upstream.GetDomainID()
 	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
@@ -190,14 +228,6 @@ func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
-
 	rr := httptest.NewRecorder()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
@@ -206,6 +236,13 @@ func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 	if true {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
+	InitJWT(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Included_paths: config.Config.Jwt.Included_paths,
+		Logger:         log.New(),
+	})
 	h := JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
@@ -231,14 +268,6 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	token, _ := CreateJWT([]byte("secret_test"))
 	req.Header.Add("Authorization", "Bearer "+token)
 
-	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
-
 	rr := httptest.NewRecorder()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
@@ -247,6 +276,13 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	if true {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
+	InitJWT(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Included_paths: config.Config.Jwt.Included_paths,
+		Logger:         log.New(),
+	})
 	h := JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
@@ -270,14 +306,6 @@ func TestJWTMiddlewareWithoutJWTValidation(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
-
 	rr := httptest.NewRecorder()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
@@ -286,6 +314,13 @@ func TestJWTMiddlewareWithoutJWTValidation(t *testing.T) {
 	if true {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
+	InitJWT(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Included_paths: config.Config.Jwt.Included_paths,
+		Logger:         log.New(),
+	})
 	h := JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
@@ -309,14 +344,6 @@ func TestJWTMiddlewareWithoutJWTAndTimeoutValidation(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
-
 	rr := httptest.NewRecorder()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
@@ -325,6 +352,13 @@ func TestJWTMiddlewareWithoutJWTAndTimeoutValidation(t *testing.T) {
 	if false {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
+	InitJWT(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Included_paths: config.Config.Jwt.Included_paths,
+		Logger:         log.New(),
+	})
 	h := JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
