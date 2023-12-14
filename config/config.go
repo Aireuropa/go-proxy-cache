@@ -21,7 +21,6 @@ import (
 
 	"github.com/jinzhu/copier"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
@@ -224,7 +223,7 @@ func (c *Configuration) copyOverWithLog(overrides Log) {
 func (c *Configuration) copyOverWithJwt(overrides Jwt) {
 	c.Jwt.Context = utils.Coalesce(overrides.Context, c.Jwt.Context).(context.Context)
 	c.Jwt.Jwks_url = utils.Coalesce(overrides.Jwks_url, c.Jwt.Jwks_url).(string)
-	c.Jwt.Logger = utils.Coalesce(overrides.Logger, c.Jwt.Logger).(*logrus.Logger)
+	c.Jwt.Logger = utils.Coalesce(overrides.Logger, c.Jwt.Logger).(*log.Logger)
 	c.Jwt.Allowed_scopes = utils.Coalesce(overrides.Allowed_scopes, c.Jwt.Allowed_scopes).([]string)
 	c.Jwt.Included_paths = utils.Coalesce(overrides.Included_paths, c.Jwt.Included_paths).([]string)
 }

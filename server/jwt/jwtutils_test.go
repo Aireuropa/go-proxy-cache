@@ -36,21 +36,21 @@ func TestContains(t *testing.T) {
 
 }
 
-func TestIsExcluded(t *testing.T) {
+func TestIsIncluded(t *testing.T) {
 	co = &config.Jwt{Included_paths: []string{"/a"}}
 	res := IsIncluded(co.Included_paths, "/a")
 	if !res {
-		t.Error("Expected false but got", res)
+		t.Error("Expected true but got", res)
 	}
 
 	res = IsIncluded(co.Included_paths, "/b")
 	if res {
-		t.Error("Expected true  but got", res)
+		t.Error("Expected false but got", res)
 	}
 	co = &config.Jwt{Included_paths: []string{}}
 	res = IsIncluded(co.Included_paths, "/b")
 	if res {
-		t.Error("Expected true  but got", res)
+		t.Error("Expected false but got", res)
 	}
 
 }

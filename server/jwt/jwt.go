@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 var co *config.Jwt
 var jwtKeyFetcher *jwk.AutoRefresh
 
+// TODO: Remove CreateJWT if unused
 func CreateJWT(key []byte) (string, error) {
 	claims := jwt.New()
 	// claims.Set(jwt.IssuerKey, "issuer")
@@ -33,7 +35,6 @@ func CreateJWT(key []byte) (string, error) {
 	return string(token), nil
 }
 
-
 func InitJWT(conifg *config.Jwt) {
 
 	if co == nil {
@@ -44,7 +45,6 @@ func InitJWT(conifg *config.Jwt) {
 			jwk.WithFetchBackoff(backoff.Constant(backoff.WithInterval(time.Minute))),
 		)
 	}
-
 }
 
 func errorJson(resp http.ResponseWriter, statuscode int, error *config.JwtError) {
@@ -59,10 +59,11 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 
 	token, err := jwt.ParseRequest(r,
 		// jwt.WithKeySet(keyset),
-		// jwt.WithValidate(true),
-		// jwt.WithTypedClaim("scope", json.RawMessage{}),
+		jwt.WithValidate(true),
+		jwt.WithTypedClaim("scope", json.RawMessage{}),
 	)
 	if err != nil {
+		// TODO: Uncomment co.Logger.Info
 		// co.Logger.Info("Error jwt:", err)
 		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
 		return http.ErrAbortHandler
@@ -73,19 +74,21 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
 		return http.ErrAbortHandler
 	}
-
-	// scopes := getScopes(token)
-	// haveAllowedScope := haveAllowedScope(scopes, co.Allowed_scopes)
-	// if !haveAllowedScope {
-	// 	errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
-	// 	return http.ErrAbortHandler
-	// }
+	scopes := getScopes(token)
+	haveAllowedScope := haveAllowedScope(scopes, co.Allowed_scopes)
+	if !haveAllowedScope {
+		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
+		return http.ErrAbortHandler
+	}
 	return nil
 
 }
 
 func JWTHandler(next http.Handler) http.Handler {
+	fmt.Println("------jwt handler")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("------11111")
+		fmt.Println("------Included_paths", co.Included_paths)
 		if IsIncluded(co.Included_paths, r.URL.Path) {
 			err := ValidateJWT(w, r)
 			if err != nil {
@@ -118,4 +121,3 @@ func getScopes(token jwt.Token) []string {
 	json.Unmarshal(scpRaw, &scopes)
 	return scopes
 }
-
