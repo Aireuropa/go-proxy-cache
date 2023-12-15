@@ -1,6 +1,3 @@
-//go:build all || functional
-// +build all functional
-
 package handler_test
 
 //                                                                         __
@@ -28,13 +25,14 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/logger"
 	"github.com/fabiocicerchia/go-proxy-cache/server/balancer"
 	"github.com/fabiocicerchia/go-proxy-cache/server/handler"
+	"github.com/fabiocicerchia/go-proxy-cache/server/jwt"
+	"github.com/fabiocicerchia/go-proxy-cache/telemetry/tracing"
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
-	"github.com/fabiocicerchia/go-proxy-cache/server/jwt"	
 )
 
 func getCommonConfig() config.Configuration {
-	initLogs()
+	//initLogs()
 
 	return config.Configuration{
 		Server: config.Server{
@@ -89,35 +87,6 @@ func TestHTTPEndToEndCallRedirect(t *testing.T) {
 	tearDownHTTPFunctional()
 }
 
-// func TestHTTPEndToEndCallRedirectJWT(t *testing.T) {
-// 	domainID := config.Config.Server.Upstream.GetDomainID()
-// 	balancer.InitRoundRobin(domainID, config.Config.Server.Upstream, false)
-// 	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
-// 	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-
-// 	req, err := http.NewRequest("GET", "http://127.0.0.1:50080/", nil)
-// 	// req.URL.Scheme = config.Config.Server.Upstream.Scheme
-// 	// req.URL.Host = config.Config.Server.Upstream.Host
-// 	// req.Host = config.Config.Server.Upstream.Host
-	
-// 	assert.Nil(t, err)
-
-// 	rr := httptest.NewRecorder()
-// 	h := http.HandlerFunc(handler.HandleRequest)
-
-// 	var mux http.Handler = h
-// 	jwt.JwtHandler(mux)
-
-// 	h.ServeHTTP(rr, req)
-
-// 	assert.Equal(t, http.StatusMovedPermanently, rr.Code)
-// 	assert.Equal(t, "https://testing.local/", rr.HeaderMap["Location"][0])
-// 	assert.Contains(t, rr.Body.String(), `Moved Permanently`)
-
-// 	tearDownHTTPFunctional()
-// }
-
-
 func TestHTTPEndToEndCallWithoutCache(t *testing.T) {
 	config.Config = getCommonConfig()
 	config.Config.Cache.DB = 2
@@ -146,6 +115,68 @@ func TestHTTPEndToEndCallWithoutCache(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	h := http.HandlerFunc(handler.HandleRequest)
+
+	h.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	assert.Equal(t, "MISS", rr.HeaderMap["X-Go-Proxy-Cache-Status"][0])
+
+	body := rr.Body.String()
+
+	assert.Contains(t, body, "<!doctype html>")
+	assert.Contains(t, body, "<title>W3C</title>")
+	assert.Contains(t, body, "</body>\n\n</html>\n")
+
+	tearDownHTTPFunctional()
+}
+
+func TestHTTPEndToEndCallWithoutCacheWithJWTScopes(t *testing.T) {
+	config.Config = getCommonConfig()
+	config.Config.Jwt.Included_paths = []string{"/"}
+	config.Config.Cache.DB = 2
+	config.Config.Domains = make(config.Domains)
+	conf := config.Config
+	config.Config.Server.Upstream = config.Upstream{
+		Host:      "www.w3.org",
+		Scheme:    "https",
+		Endpoints: []string{"www.w3.org"},
+	}
+	conf.Jwt.Allowed_scopes = []string{"scope1", "scope2"}
+	config.Config.Domains["www.w3.org"] = conf
+
+	domainID := config.Config.Server.Upstream.GetDomainID()
+	balancer.InitRoundRobin(domainID, config.Config.Server.Upstream, false)
+	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
+	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
+
+	engine.GetConn(domainID).Close()
+
+	req, err := http.NewRequest("GET", "/", nil)
+	req.URL.Scheme = config.Config.Server.Upstream.Scheme
+	req.URL.Host = config.Config.Server.Upstream.Host
+	req.Host = config.Config.Server.Upstream.Host
+	req.TLS = &tls.ConnectionState{} // mock a fake https
+	assert.Nil(t, err)
+
+	rr := httptest.NewRecorder()
+	// h := http.HandlerFunc(handler.HandleRequest)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
+	var muxMiddleware http.Handler = mux
+	timeout := config.Config.Server.Timeout
+	if true {
+		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
+	}
+	jwt.InitJWT(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Included_paths: config.Config.Jwt.Included_paths,
+		Logger:         log.New(),
+	})
+	h := jwt.JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
 
