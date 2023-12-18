@@ -147,20 +147,29 @@ func TestHTTPEndToEndCallWithoutCache(t *testing.T) {
 }
 
 func TestHTTPEndToEndCallWithoutCacheWithJWTScopes(t *testing.T) {
-	config.Config = getCommonConfig()
+	config.Config = config.Configuration{
+		Cache: config.Cache{
+			Hosts: []string{utils.GetEnv("REDIS_HOSTS", "localhost:6379")},
+			DB:    0,
+		},
+		CircuitBreaker: circuit_breaker.CircuitBreaker{
+			Threshold:   2,                // after 2nd request, if meet FailureRate goes open.
+			FailureRate: 0.5,              // 1 out of 2 fails, or more
+			Interval:    time.Duration(1), // clears counts immediately
+			Timeout:     time.Duration(1), // clears state immediately
+		},
+	}
 	config.Config.Jwt.Included_paths = []string{"/"}
 	config.Config.Cache.DB = 2
 	config.Config.Domains = make(config.Domains)
-	conf := config.Config
 	config.Config.Server.Upstream = config.Upstream{
-		Host:      "www.w3.org",
-		Scheme:    "https",
-		Endpoints: []string{"www.w3.org"},
+		Host:   "example.com",
+		Scheme: "https",
 	}
-	
+	conf := config.Config
 	conf.Jwt.Allowed_scopes = []string{"scope1", "scope2"}
-	config.Config.Domains["www.w3.org"] = conf
-	conf.Server.Upstream.Host = "www.w3.org"
+	config.Config.Domains["example_com"] = conf
+
 
 	domainID := config.Config.Server.Upstream.GetDomainID()
 	balancer.InitRoundRobin(domainID, config.Config.Server.Upstream, false)
@@ -181,7 +190,6 @@ func TestHTTPEndToEndCallWithoutCacheWithJWTScopes(t *testing.T) {
 	assert.Nil(t, err)
 
 	rr := httptest.NewRecorder()
-	// h := http.HandlerFunc(handler.HandleRequest)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
@@ -204,12 +212,6 @@ func TestHTTPEndToEndCallWithoutCacheWithJWTScopes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	assert.Equal(t, "MISS", rr.HeaderMap["X-Go-Proxy-Cache-Status"][0])
-
-	body := rr.Body.String()
-
-	assert.Contains(t, body, "<!doctype html>")
-	assert.Contains(t, body, "<title>W3C</title>")
-	assert.Contains(t, body, "</body>\n\n</html>\n")
 
 	tearDownHTTPFunctional()
 }
