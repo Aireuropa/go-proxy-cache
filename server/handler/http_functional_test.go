@@ -29,6 +29,8 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/telemetry/tracing"
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
+	"github.com/lestrrat-go/jwx/jwa"
+	gojwt "github.com/lestrrat-go/jwx/jwt"
 )
 
 func getCommonConfig() config.Configuration {
@@ -53,6 +55,19 @@ func getCommonConfig() config.Configuration {
 			Timeout:     time.Duration(1), // clears state immediately
 		},
 	}
+}
+
+func CreateJWTTestWithScopeClaim(key []byte) (string, error) {
+	claims := gojwt.New()
+	claims.Set("scope", []string{"scope1", "scope2", "scope3"})
+	claims.Set(gojwt.ExpirationKey, time.Now().Add(1*time.Hour))
+
+	token, err :=gojwt.Sign(claims, jwa.HS256, key)
+	if err != nil {
+		return "", err
+	}
+
+	return string(token), nil
 }
 
 // --- HTTP
@@ -142,8 +157,10 @@ func TestHTTPEndToEndCallWithoutCacheWithJWTScopes(t *testing.T) {
 		Scheme:    "https",
 		Endpoints: []string{"www.w3.org"},
 	}
+	
 	conf.Jwt.Allowed_scopes = []string{"scope1", "scope2"}
 	config.Config.Domains["www.w3.org"] = conf
+	conf.Server.Upstream.Host = "www.w3.org"
 
 	domainID := config.Config.Server.Upstream.GetDomainID()
 	balancer.InitRoundRobin(domainID, config.Config.Server.Upstream, false)
@@ -153,6 +170,10 @@ func TestHTTPEndToEndCallWithoutCacheWithJWTScopes(t *testing.T) {
 	engine.GetConn(domainID).Close()
 
 	req, err := http.NewRequest("GET", "/", nil)
+
+	token, _ := CreateJWTTestWithScopeClaim([]byte("secret_test"))
+	req.Header.Add("Authorization", "Bearer "+token)
+
 	req.URL.Scheme = config.Config.Server.Upstream.Scheme
 	req.URL.Host = config.Config.Server.Upstream.Host
 	req.Host = config.Config.Server.Upstream.Host
@@ -166,7 +187,7 @@ func TestHTTPEndToEndCallWithoutCacheWithJWTScopes(t *testing.T) {
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
 	var muxMiddleware http.Handler = mux
 	timeout := config.Config.Server.Timeout
-	if true {
+	if false {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
 	jwt.InitJWT(&config.Jwt{

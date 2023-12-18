@@ -45,7 +45,7 @@ func getCommonConfig() config.Configuration {
 	}
 }
 
-func CreateJWTTest(key []byte) (string, error) {
+func CreateJWTTestWithScopeClaim(key []byte) (string, error) {
 	claims := jwt.New()
 	claims.Set("scope", []string{"scope1", "scope2", "scope3"})
 	claims.Set(jwt.ExpirationKey, time.Now().Add(1*time.Hour))
@@ -73,7 +73,7 @@ func CreateJWTTestWithScpClaim(key []byte) (string, error) {
 
 // TODO: Replace strExpiredToken and strGoodToken with a token when jwt creation method is finished
 const strExpiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDI1NDY5MzIsInNjb3BlIjpbInNjb3BlMSIsInNjb3BlMiIsInNjb3BlMyJdfQ.aMxdJwdO79AXKlWoRvBYbzqHx_WhN_HyMZBAvS8zsOw"
-var strGoodToken,_ = CreateJWTTest([]byte("secret_test"))
+var strGoodToken,_ = CreateJWTTestWithScopeClaim([]byte("secret_test"))
 var scpGoodToken,_ = CreateJWTTestWithScpClaim([]byte("secret_test"))
 
 func TestAllowedScope(t *testing.T) {
@@ -265,7 +265,7 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	token, _ := CreateJWT([]byte("secret_test"))
+	token, _ := CreateJWTTestWithScopeClaim([]byte("secret_test"))
 	req.Header.Add("Authorization", "Bearer "+token)
 
 	rr := httptest.NewRecorder()

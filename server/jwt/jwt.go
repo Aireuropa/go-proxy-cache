@@ -76,7 +76,9 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 		return http.ErrAbortHandler
 	}
 	scopes := getScopes(token)
-	haveAllowedScope := haveAllowedScope(scopes, co.Allowed_scopes)
+	domainConfig, _ := config.DomainConf(r.URL.Host, r.URL.Scheme)
+
+	haveAllowedScope := haveAllowedScope(scopes, domainConfig.Jwt.Allowed_scopes)
 	if !haveAllowedScope {
 		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
 		return http.ErrAbortHandler
