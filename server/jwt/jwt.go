@@ -54,10 +54,10 @@ func errorJson(resp http.ResponseWriter, statuscode int, error *config.JwtError)
 }
 
 func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
-	// keyset, err := jwtKeyFetcher.Fetch(co.Context, co.Jwks_url)
+	keyset, err := jwtKeyFetcher.Fetch(co.Context, co.Jwks_url)
 
 	token, err := jwt.ParseRequest(r,
-		// jwt.WithKeySet(keyset),
+		jwt.WithKeySet(keyset),
 		jwt.WithValidate(true),
 		jwt.WithTypedClaim("scope", json.RawMessage{}),
 		jwt.WithTypedClaim("scp", json.RawMessage{}),

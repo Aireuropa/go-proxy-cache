@@ -152,7 +152,7 @@ func TestValidateJWT(t *testing.T) {
 	ValidateJWT(w, req)
 	assert.Equal(t, w.Code, 401, "invalid JWK set passed via WithKeySet")
 	// TODO: Uncomment to test keys
-	// assert.Containsf(t, w.Body.String(), "invalid JWK set passed via WithKeySet", "invalid JWK set passed via WithKeySet")
+	assert.Containsf(t, w.Body.String(), "invalid JWK set passed via WithKeySet", "invalid JWK set passed via WithKeySet")
 
 	co = nil
 	InitJWT(&config.Jwt{
@@ -160,9 +160,16 @@ func TestValidateJWT(t *testing.T) {
 		Logger:   l,
 		Jwks_url: ts.URL + "/.well-known-test/jwks.json",
 	})
+
+	req, _ = http.NewRequest("GET", ts.URL + "/.well-known/jwks.json", nil)
+
+	res, err := http.DefaultClient.Do(req)
+	fmt.Println("res: ", res)
+	fmt.Println("err: ", err)
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
 	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
+	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-test/jwks.json"
 	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 401, "exp not satisfied")
