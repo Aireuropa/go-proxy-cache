@@ -101,7 +101,6 @@ func TestGetScopesWithScopeClaim(t *testing.T) {
 
 func TestGetScopesWithScpClaim(t *testing.T) {
 	scpClaimToken,_ := CreateJWTTestWithScpClaim([]byte("secret_test"))
-	fmt.Println(scpClaimToken)
 	token, _ := jwt.ParseString(scpClaimToken, jwt.WithTypedClaim("scp", json.RawMessage{}))
 
 	res := getScopes(token)
@@ -214,7 +213,6 @@ func TestValidateJWT(t *testing.T) {
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
 
 }
-
 
 func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 	config.Config = getCommonConfig()

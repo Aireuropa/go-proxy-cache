@@ -94,9 +94,6 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 
 func JWTHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("------r.host", r.Host)
-		test := config.Config.Domains[r.Host]
-		fmt.Print("------config.Config.Domains[r.Host]", test.Jwt.Allowed_scopes)
 		if IsIncluded(co.Included_paths, r.URL.Path) {
 			err := ValidateJWT(w, r)
 			if err != nil {
