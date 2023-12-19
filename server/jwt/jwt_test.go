@@ -17,6 +17,7 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
 	"github.com/lestrrat-go/jwx/jwa"
+	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jwt"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -161,11 +162,15 @@ func TestValidateJWT(t *testing.T) {
 		Jwks_url: ts.URL + "/.well-known-test/jwks.json",
 	})
 
-	req, _ = http.NewRequest("GET", ts.URL + "/.well-known/jwks.json", nil)
-
-	res, err := http.DefaultClient.Do(req)
+	// req, _ = http.NewRequest("GET", ts.URL + "/.well-known/jwks.json", nil)
+	// res, err := http.DefaultClient.Do(req)
+	res, err := http.Get(ts.URL + "/.well-known/jwks.json")
 	fmt.Println("res: ", res)
 	fmt.Println("err: ", err)
+	keySet, err := jwk.ParseReader(res.Body)
+	fmt.Println("keySet: ", keySet)
+	fmt.Println("err: ", err)
+
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
 	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
@@ -261,6 +266,7 @@ func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	// TODO: Implement tags and uncomment initLogs()
 	config.Config = getCommonConfig()
+	config.Config.Jwt.Included_paths = []string{"/"}
 
 	domainID := config.Config.Server.Upstream.GetDomainID()
 	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
