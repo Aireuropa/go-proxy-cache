@@ -2,8 +2,10 @@ package jwt
 
 import (
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,7 +19,7 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
 	"github.com/lestrrat-go/jwx/jwa"
-	"github.com/lestrrat-go/jwx/jwk"
+
 	"github.com/lestrrat-go/jwx/jwt"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -72,10 +74,67 @@ func CreateJWTTestWithScpClaim(key []byte) (string, error) {
 	return string(token), nil
 }
 
+type Key struct {
+	Kid string `json:"kid"`
+	Kty string `json:"kty"`
+	Use string `json:"use"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+}
+
+type JWKS struct {
+	Keys []Key `json:"keys"`
+}
+
+var jwks = JWKS{
+	Keys: []Key{
+		{
+			Kid: "key-id-1",
+			Kty: "RSA",
+			Use: "sig",
+			N:   "base64url-encoded-modulus",
+			E:   "base64url-encoded-exponent",
+		},
+		{
+			Kid: "key-id-2",
+			Kty: "RSA",
+			Use: "sig",
+			N:   "base64url-encoded-modulus",
+			E:   "base64url-encoded-exponent",
+		},
+	},
+}
+
+var jsonJWKS, err = json.Marshal(jwks)
+
+// fmt.Println("JSON JWKS:", string(jsonJWKS))
+
+type jwkKey struct {
+	Kid   string `json:"kid"`
+	Kty   string `json:"kty"`
+	N     string `json:"n"`
+	E     string `json:"e"`
+	Alg   string `json:"alg"`
+	Use   string `json:"use"`
+	Certs string `json:"x5c,omitempty"`
+}
+
+func buildJWK(publicKey *rsa.PublicKey, keyID string) jwkKey {
+	return jwkKey{
+		Kid: keyID,
+		Kty: "RSA",
+		N:   encodeBase64URL(publicKey.N.Bytes()),
+		E:   encodeBase64URL(intToBytes(int(publicKey.E))),
+		Alg: "RS256", // Algoritmo de firma
+		Use: "sig",   // Uso de la clave (firma)
+	}
+}
+
 // TODO: Replace strExpiredToken and strGoodToken with a token when jwt creation method is finished
 const strExpiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDI1NDY5MzIsInNjb3BlIjpbInNjb3BlMSIsInNjb3BlMiIsInNjb3BlMyJdfQ.aMxdJwdO79AXKlWoRvBYbzqHx_WhN_HyMZBAvS8zsOw"
-var strGoodToken,_ = CreateJWTTestWithScopeClaim([]byte("secret_test"))
-var scpGoodToken,_ = CreateJWTTestWithScpClaim([]byte("secret_test"))
+
+var strGoodToken, _ = CreateJWTTestWithScopeClaim([]byte("secret_test"))
+var scpGoodToken, _ = CreateJWTTestWithScpClaim([]byte("secret_test"))
 
 func TestAllowedScope(t *testing.T) {
 	co := &config.Jwt{Allowed_scopes: []string{"admin"}}
@@ -101,7 +160,7 @@ func TestGetScopesWithScopeClaim(t *testing.T) {
 }
 
 func TestGetScopesWithScpClaim(t *testing.T) {
-	scpClaimToken,_ := CreateJWTTestWithScpClaim([]byte("secret_test"))
+	scpClaimToken, _ := CreateJWTTestWithScpClaim([]byte("secret_test"))
 	token, _ := jwt.ParseString(scpClaimToken, jwt.WithTypedClaim("scp", json.RawMessage{}))
 
 	res := getScopes(token)
@@ -115,10 +174,13 @@ func TestValidateJWT(t *testing.T) {
 		t.Log("Got connection!")
 		switch r.URL.String() {
 		case "/.well-known-test/jwks.json":
-			fmt.Fprintln(w, `token-data`)
+			fmt.Fprintln(w)
 			break
 		case "/.well-known/jwks.json":
-			fmt.Fprintln(w, `token-data`)
+			w.Write([]byte(jsonJWKS))
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintln(w)
 			break
 
 		case "/.bad-known/jwks.json":
@@ -159,7 +221,7 @@ func TestValidateJWT(t *testing.T) {
 	InitJWT(&config.Jwt{
 		Context:  c,
 		Logger:   l,
-		Jwks_url: ts.URL + "/.well-known-test/jwks.json",
+		Jwks_url: ts.URL + "/.well-known/jwks.json",
 	})
 
 	// req, _ = http.NewRequest("GET", ts.URL + "/.well-known/jwks.json", nil)
@@ -167,14 +229,21 @@ func TestValidateJWT(t *testing.T) {
 	res, err := http.Get(ts.URL + "/.well-known/jwks.json")
 	fmt.Println("res: ", res)
 	fmt.Println("err: ", err)
-	keySet, err := jwk.ParseReader(res.Body)
-	fmt.Println("keySet: ", keySet)
-	fmt.Println("err: ", err)
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Respuesta:", string(body))
+	// keySet, err := jwk.ParseReader(res.Body)
+	// fmt.Println("keySet: ", keySet)
+	// fmt.Println("err: ", err)
 
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
 	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
-	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-test/jwks.json"
+	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known/jwks.json"
+
 	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 401, "exp not satisfied")
