@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -19,7 +20,7 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
 	"github.com/lestrrat-go/jwx/jwa"
-
+	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jwt"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -74,6 +75,21 @@ func CreateJWTTestWithScpClaim(key []byte) (string, error) {
 	return string(token), nil
 }
 
+func CreateJWTTestWithScpClaimExpired(key []byte) (string, error) {
+	claims := jwt.New()
+	claims.Set("scp", []string{"scope1", "scope2", "scope3"})
+	claims.Set(jwt.ExpirationKey, time.Now())
+	claims.Set(jwt.JwtIDKey, "key-id-1")
+
+	token, err := jwt.Sign(claims, jwa.HS256,  key)
+	if err != nil {
+		return "", err
+	}
+
+	return string(token), nil
+}
+
+
 type Key struct {
 	Kid string `json:"kid"`
 	Kty string `json:"kty"`
@@ -86,26 +102,14 @@ type JWKS struct {
 	Keys []Key `json:"keys"`
 }
 
-var jwks = JWKS{
-	Keys: []Key{
-		{
-			Kid: "key-id-1",
-			Kty: "RSA",
-			Use: "sig",
-			N:   "base64url-encoded-modulus",
-			E:   "base64url-encoded-exponent",
-		},
-		{
-			Kid: "key-id-2",
-			Kty: "RSA",
-			Use: "sig",
-			N:   "base64url-encoded-modulus",
-			E:   "base64url-encoded-exponent",
-		},
-	},
-}
+// var privateKey, _ = rsa.GenerateKey(rand.Reader, 2048)
 
-var jsonJWKS, err = json.Marshal(jwks)
+// var publicKey = &privateKey.PublicKey
+
+// var jwks, err  = generateJWKS(publicKey, "key-id-1")
+// fmt.Println("err: ", err)
+
+// var jsonJWKS, err = json.Marshal(jwks)
 
 // fmt.Println("JSON JWKS:", string(jsonJWKS))
 
@@ -119,19 +123,40 @@ type jwkKey struct {
 	Certs string `json:"x5c,omitempty"`
 }
 
-func buildJWK(publicKey *rsa.PublicKey, keyID string) jwkKey {
-	return jwkKey{
-		Kid: keyID,
-		Kty: "RSA",
-		N:   encodeBase64URL(publicKey.N.Bytes()),
-		E:   encodeBase64URL(intToBytes(int(publicKey.E))),
-		Alg: "RS256", // Algoritmo de firma
-		Use: "sig",   // Uso de la clave (firma)
+func generateJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
+    // Crea una clave JWK
+    key, err := jwk.New(publicKey)
+    if err != nil {
+        return nil, err
+    }
+
+    // Configura el ID de la clave (kid)
+    key.Set(jwk.KeyIDKey, keyID)
+
+    // Configura el uso de la clave (sig: firma)
+    key.Set(jwk.KeyUsageKey, jwk.ForSignature)
+
+    // Configura el algoritmo de firma (RS256 es común para RSA)
+    key.Set(jwk.AlgorithmKey, "HS256")
+
+    // Configura la fecha de expiración
+    //key.Set(jwk, time.Now().Add(24*time.Hour))
+
+    // Crea un conjunto de claves (JWKS) con la clave generada
+    jwks := jwk.NewSet()
+    // if err := jwks.Add(key); err != false {
+    //     return nil, nil
+    // }
+	boo := jwks.Add(key)
+	if (!boo) {
+		return nil, nil
 	}
+
+    return jwks, nil
 }
 
 // TODO: Replace strExpiredToken and strGoodToken with a token when jwt creation method is finished
-const strExpiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDI1NDY5MzIsInNjb3BlIjpbInNjb3BlMSIsInNjb3BlMiIsInNjb3BlMyJdfQ.aMxdJwdO79AXKlWoRvBYbzqHx_WhN_HyMZBAvS8zsOw"
+var strExpiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDI1NDY5MzIsInNjb3BlIjpbInNjb3BlMSIsInNjb3BlMiIsInNjb3BlMyJdfQ.aMxdJwdO79AXKlWoRvBYbzqHx_WhN_HyMZBAvS8zsOw"
 
 var strGoodToken, _ = CreateJWTTestWithScopeClaim([]byte("secret_test"))
 var scpGoodToken, _ = CreateJWTTestWithScpClaim([]byte("secret_test"))
@@ -169,6 +194,15 @@ func TestGetScopesWithScpClaim(t *testing.T) {
 }
 
 func TestValidateJWT(t *testing.T) {
+	
+	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)	
+
+	publicKey := &privateKey.PublicKey
+
+	jwks, errJwks  := generateJWKS(publicKey, "key-id-1")
+	fmt.Println("err: ", errJwks)
+
+	jsonJWKS, err := json.Marshal(jwks)
 	// Http server test
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Log("Got connection!")
@@ -179,8 +213,9 @@ func TestValidateJWT(t *testing.T) {
 		case "/.well-known/jwks.json":
 			w.Write([]byte(jsonJWKS))
 			w.WriteHeader(http.StatusOK)
+			fmt.Print("errer", w)
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintln(w)
+			fmt.Fprintln(w)			
 			break
 
 		case "/.bad-known/jwks.json":
