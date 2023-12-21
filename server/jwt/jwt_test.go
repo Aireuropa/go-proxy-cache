@@ -84,10 +84,6 @@ func CreateJWTTestWithScpClaimExpired(key []byte) (string, error) {
 	claims.Set(jwt.IssuedAtKey, time.Now())
 	claims.Set(jwt.JwtIDKey, "key-id-1")
 
-	claims.Set(jwt.AlgorithmKey, jwa.RS256)
-	claims.Set(jwt.KeyIDKey, "key_id_123")
-
-
 	token, err := jwt.Sign(claims, jwa.HS256, key)
 	if err != nil {
 		return "", err
@@ -95,6 +91,26 @@ func CreateJWTTestWithScpClaimExpired(key []byte) (string, error) {
 
 	return string(token), nil
 }
+
+func CreateJWTTestWithScpClaimExpired2(key jwk.Key) (string, error) {
+	claims := jwt.New()
+	claims.Set("scp", []string{"scope1", "scope2", "scope3"})
+	claims.Set(jwt.ExpirationKey, time.Now())
+	claims.Set(jwt.IssuerKey, "issuer")
+	claims.Set(jwt.AudienceKey, "audience_key")
+	claims.Set(jwt.NotBeforeKey, time.Now().Add(-1*time.Minute))
+	claims.Set(jwt.IssuedAtKey, time.Now())
+	claims.Set(jwt.JwtIDKey, "key-id-1")
+	
+	token, err := jwt.Sign(claims, jwa.RS256, key)
+	if err != nil {
+		return "", err
+	}
+
+	return string(token), nil
+}
+
+// jwt.KeySetProviderFunc()
 
 
 type Key struct {
@@ -202,9 +218,15 @@ func TestGetScopesWithScpClaim(t *testing.T) {
 
 func TestValidateJWT(t *testing.T) {
 	
-	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)	
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	fmt.Println("err: ", err)
 
 	publicKey := &privateKey.PublicKey
+
+	jwkKey, err := jwk.New(privateKey)
+	fmt.Println("err: ", err)
+
+	var strExpiredToken2, _ = CreateJWTTestWithScpClaimExpired2(jwkKey)
 
 	jwks, errJwks  := generateJWKS(publicKey, "key-id-1")
 	fmt.Println("err: ", errJwks)
@@ -253,7 +275,7 @@ func TestValidateJWT(t *testing.T) {
 
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
+	req.Header.Add("Authorization", "Bearer "+strExpiredToken2)
 	config.Config.Jwt.Jwks_url = ts.URL + "/.bad-known/jwks.json"
 
 	ValidateJWT(w, req)
@@ -286,7 +308,7 @@ func TestValidateJWT(t *testing.T) {
 
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
+	req.Header.Add("Authorization", "Bearer "+strExpiredToken2)
 
 	ValidateJWT(w, req)
 
