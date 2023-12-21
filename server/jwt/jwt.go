@@ -55,7 +55,11 @@ func errorJson(resp http.ResponseWriter, statuscode int, error *config.JwtError)
 
 func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 	keyset, err := jwtKeyFetcher.Fetch(co.Context, co.Jwks_url)
-
+	if err != nil {
+		co.Logger.Info("Error jwt:", err)
+		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
+		return http.ErrAbortHandler
+	}
 	token, err := jwt.ParseRequest(r,
 		jwt.WithKeySet(keyset),
 		jwt.WithValidate(true),
@@ -63,8 +67,7 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 		jwt.WithTypedClaim("scp", json.RawMessage{}),
 	)
 	if err != nil {
-		// TODO: Uncomment co.Logger.Info
-		// co.Logger.Info("Error jwt:", err)
+		co.Logger.Info("Error jwt:", err)
 		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "JsonWebTokenError", ErrorDescription: err.Error()})
 		return http.ErrAbortHandler
 	}
