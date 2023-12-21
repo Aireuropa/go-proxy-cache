@@ -160,7 +160,7 @@ func generateJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
     key.Set(jwk.KeyUsageKey, jwk.ForSignature)
 
     // Configura el algoritmo de firma (RS256 es común para RSA)
-    key.Set(jwk.AlgorithmKey, "HS256")
+    key.Set(jwk.AlgorithmKey, "RS256")
 
     // Configura la fecha de expiración
     //key.Set(jwk, time.Now().Add(24*time.Hour))
@@ -179,7 +179,7 @@ func generateJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
 }
 
 // TODO: Replace strExpiredToken and strGoodToken with a token when jwt creation method is finished
-var strExpiredToken, _ = CreateJWTTestWithScpClaimExpired([]byte("secret"))
+var strExpiredToken, _ = CreateJWTTestWithScpClaimExpired([]byte("key-id-1"))
 
 var strGoodToken, _ = CreateJWTTestWithScopeClaim([]byte("secret_test"))
 var scpGoodToken, _ = CreateJWTTestWithScpClaim([]byte("secret_test"))
@@ -224,6 +224,7 @@ func TestValidateJWT(t *testing.T) {
 	publicKey := &privateKey.PublicKey
 
 	jwkKey, err := jwk.New(privateKey)
+	jwkKey.Set("kid", "key-id-1")
 	fmt.Println("err: ", err)
 
 	var strExpiredToken2, _ = CreateJWTTestWithScpClaimExpired2(jwkKey)
