@@ -6,8 +6,10 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	math "math/rand"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -146,11 +148,12 @@ func generateJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
 }
 
 func generateJWKSTest(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
-    key, err := jwk.New(publicKey)
+
+	key, err := jwk.New(publicKey)
     if err != nil {
         return nil, err
     }
-    key.Set(jwk.KeyIDKey, keyID)
+    key.Set(jwk.KeyIDKey, strconv.Itoa(generateRandomNumber()))
     key.Set(jwk.KeyUsageKey, jwk.ForSignature)
     key.Set(jwk.AlgorithmKey, "RS256")
     jwks := jwk.NewSet()
@@ -159,19 +162,28 @@ func generateJWKSTest(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
 		return nil, nil
 	}
 
-	// key2, err := jwk.New(publicKey)
-    // if err != nil {
-    //     return nil, err
-    // }
-    // key2.Set(jwk.KeyIDKey, keyID)
-    // key2.Set(jwk.KeyUsageKey, jwk.ForSignature)
-    // key2.Set(jwk.AlgorithmKey, "RS256")
-	// isAdded2 := jwks.Add(key2)
-	// if (!isAdded2) {
-	// 	return nil, nil
-	// }
+	key2, err := jwk.New(publicKey)
+    if err != nil {
+        return nil, err
+    }
+    key2.Set(jwk.KeyIDKey, strconv.Itoa(generateRandomNumber()))
+    key2.Set(jwk.KeyUsageKey, jwk.ForSignature)
+    key2.Set(jwk.AlgorithmKey, "RS256")
+	isAdded2 := jwks.Add(key2)
+	if (!isAdded2) {
+		return nil, nil
+	}
 
     return jwks, nil
+}
+
+func generateRandomNumber() int {
+	r := math.New(math.NewSource(time.Now().UnixNano()))
+    var ale int
+    for f := 0; f < 1; f++ {
+        ale = r.Intn(1000000)
+    }
+	return ale
 }
 
 // Tests
@@ -191,7 +203,7 @@ func TestAllowedScope(t *testing.T) {
 }
 
 func TestGetScopesWithScopeClaim(t *testing.T) {
-	_, _, jwkKey, _, _ := generateKeys()
+	_, _, jwkKey, _, _, _ := generateKeys()
 	strExpiredToken, _ := CreateJWTTestWithScpClaimExpired(jwkKey)
 
 	token, _ := jwt.ParseString(strExpiredToken, jwt.WithTypedClaim("scope", json.RawMessage{}))
@@ -202,7 +214,7 @@ func TestGetScopesWithScopeClaim(t *testing.T) {
 }
 
 func TestGetScopesWithScpClaim(t *testing.T) {
-	_, _, jwkKey, _, _ := generateKeys()
+	_, _, jwkKey, _, _, _ := generateKeys()
 	scpClaimToken, _ := CreateJWTTestWithScpClaim(jwkKey)
 	token, _ := jwt.ParseString(scpClaimToken, jwt.WithTypedClaim("scp", json.RawMessage{}))
 
@@ -211,22 +223,26 @@ func TestGetScopesWithScpClaim(t *testing.T) {
 	assert.ElementsMatch(t, res, []string{"scope1", "scope2", "scope3"}, "Scopes provided doesn't match")
 }
 
-func generateKeys() (*rsa.PrivateKey, *rsa.PublicKey, jwk.Key, jwk.Set, jwk.Set) {
+func generateKeys() (*rsa.PrivateKey, *rsa.PublicKey, jwk.Key, jwk.Set, jwk.Set, jwk.Key) {
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	publicKey := &privateKey.PublicKey
 	jwkKey, _ := jwk.New(privateKey)
-	jwkKey.Set("kid", "key-id-1-test")
+	jwkKey.Set("kid", "key-id-1")
 	jwks, _  := generateJWKS(publicKey, "key-id-1")
+
+	jwkKeyTest, _ := jwk.New(privateKey)
+	jwkKeyTest.Set("kid", "key-id-1-test")
 	testJwks, _  := generateJWKSTest(publicKey, "key-id-1-test")
 	
-	return privateKey, publicKey, jwkKey, jwks, testJwks
+	return privateKey, publicKey, jwkKey, jwks, testJwks, jwkKeyTest
 }
 
 func TestValidateJWT(t *testing.T) {
-	_, _, jwkKey, jwks, _ := generateKeys()
-	_, _, _, _, testJwks := generateKeys()
+	_, _, jwkKey, jwks, _, _ := generateKeys()
+	_, _, _, _, testJwks, jwkKeyTest := generateKeys()
+	
 
-	strExpiredToken, _ := CreateJWTTestWithScpClaimExpired(jwkKey)
+	strExpiredToken, _ := CreateJWTTestWithScpClaimExpired(jwkKeyTest)
 	scopeGoodToken, _ := CreateJWTTestWithScopeClaim(jwkKey)
 	scpGoodToken, _ := CreateJWTTestWithScpClaim(jwkKey)
 
@@ -414,7 +430,7 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	_, _, jwkKey, _, _ := generateKeys()
+	_, _, jwkKey, _, _, _ := generateKeys()
 	token, _ := CreateJWTTestWithScpClaimExpired(jwkKey)
 	req.Header.Add("Authorization", "Bearer "+token)
 
