@@ -86,9 +86,9 @@ func CreateJWTTestWithScpClaim(key jwk.Key) (string, error) {
 	return string(token), nil
 }
 
-func CreateJWTTestWithScpClaimExpired(key jwk.Key) (string, error) {
+func CreateJWTTestExpired(key jwk.Key, scope string) (string, error) {
 	claims := jwt.New()
-	claims.Set("scp", []string{"scope1", "scope2", "scope3"})
+	claims.Set(scope, []string{"scope1", "scope2", "scope3"})
 	claims.Set(jwt.ExpirationKey, time.Now())
 	claims.Set(jwt.IssuerKey, "issuer")
 	claims.Set(jwt.AudienceKey, "audience_key")
@@ -179,7 +179,7 @@ func TestAllowedScope(t *testing.T) {
 
 func TestGetScopesWithScopeClaim(t *testing.T) {
 	_, _, jwkKey, _, _, _ := generateKeys()
-	strExpiredToken, _ := CreateJWTTestWithScpClaimExpired(jwkKey)
+	strExpiredToken, _ := CreateJWTTestExpired(jwkKey, "scope")
 
 	token, _ := jwt.ParseString(strExpiredToken, jwt.WithTypedClaim("scope", json.RawMessage{}))
 
@@ -190,7 +190,7 @@ func TestGetScopesWithScopeClaim(t *testing.T) {
 
 func TestGetScopesWithScpClaim(t *testing.T) {
 	_, _, jwkKey, _, _, _ := generateKeys()
-	scpClaimToken, _ := CreateJWTTestWithScpClaim(jwkKey)
+	scpClaimToken, _ := CreateJWTTestExpired(jwkKey, "scp")
 	token, _ := jwt.ParseString(scpClaimToken, jwt.WithTypedClaim("scp", json.RawMessage{}))
 
 	res := getScopes(token)
@@ -198,42 +198,48 @@ func TestGetScopesWithScpClaim(t *testing.T) {
 	assert.ElementsMatch(t, res, []string{"scope1", "scope2", "scope3"}, "Scopes provided doesn't match")
 }
 
-func generateKeys() (*rsa.PrivateKey, *rsa.PublicKey, jwk.Key, jwk.Set, jwk.Set, jwk.Key) {
+func generateKeys() (*rsa.PrivateKey, *rsa.PublicKey, jwk.Key, jwk.Key, jwk.Set, jwk.Set, ) {
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	publicKey := &privateKey.PublicKey
 	jwkKey, _ := jwk.New(privateKey)
 	keyId := "key-id-1"
 	jwkKey.Set("kid", keyId)
-	jwks, _  := generateJWKS(publicKey, keyId)
+	jwksKeySet, _  := generateJWKS(publicKey, keyId)
 
 	jwkKeyTest, _ := jwk.New(privateKey)
 	keyIdTest := "key-id-1-test"
-	jwkKeyTest.Set("kid", keyIdTest)
-	testJwks, _  := generateJWKSTest(publicKey, keyIdTest)
+	jwkKeyTest.Set("kid", "key-id-1-test")
+	testJwksKeySet, _  := generateJWKSTest(publicKey, keyIdTest)
 	
-	return privateKey, publicKey, jwkKey, jwks, testJwks, jwkKeyTest
+	return privateKey, publicKey, jwkKey, jwkKeyTest, jwksKeySet, testJwksKeySet
 }
 
-func TestValidateJWT(t *testing.T) {
-	_, _, jwkKey, jwks, testJwks, jwkKeyTest := generateKeys()
+// func createJWTs() (string, string, string, jwk.Set, jwk.Set) {
+// 	_, _, jwkKey, jwkKeyTest, jwksKeySet, testJwksKeySet := generateKeys()
 
-	strExpiredToken, _ := CreateJWTTestWithScpClaimExpired(jwkKeyTest)
-	scopeGoodToken, _ := CreateJWTTestWithScopeClaim(jwkKey)
-	scpGoodToken, _ := CreateJWTTestWithScpClaim(jwkKey)
+// 	strExpiredToken, _ := CreateJWTTestExpired(jwkKeyTest, "scp")
+// 	scopeGoodToken, _ := CreateJWTTestWithScopeClaim(jwkKey)
+// 	scpGoodToken, _ := CreateJWTTestWithScpClaim(jwkKey)
 
-	jsonJWKS, _ := json.Marshal(jwks)
-	testJsonJWKS, _ := json.Marshal(testJwks)
+// 	return strExpiredToken, scopeGoodToken, scpGoodToken, jwksKeySet, testJwksKeySet
+// }.
+
+func createTestServer(t *testing.T, jsonJWKSKeySet []byte, testJsonJWKSKeySet []byte) *httptest.Server {
+	// _, _, _, jwksKeySet, testJwksKeySet := createJWTs()
+
+	// jsonJWKSKeySet, _ := json.Marshal(jwksKeySet)
+	// testJsonJWKSKeySet, _ := json.Marshal(testJwksKeySet)
 	// Http server test
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Log("Got connection!")
 		switch r.URL.String() {
 		case "/.well-known-test/jwks.json":
-			w.Write([]byte(testJsonJWKS))
+			w.Write([]byte(testJsonJWKSKeySet))
 			w.WriteHeader(http.StatusOK)
 			w.Header().Set("Content-Type", "application/json")
 			break
 		case "/.well-known/jwks.json":
-			w.Write([]byte(jsonJWKS))
+			w.Write([]byte(jsonJWKSKeySet))
 			w.WriteHeader(http.StatusOK)
 			w.Header().Set("Content-Type", "application/json")	
 			break
@@ -245,8 +251,21 @@ func TestValidateJWT(t *testing.T) {
 		}
 
 	}))
-	defer ts.Close()
 
+	return ts
+}
+
+func TestValidateJWT(t *testing.T) {
+	// strExpiredToken, scopeGoodToken, scpGoodToken, _, _ := createJWTs()
+	_, _, jwkKey, jwkKeyTest, jwksKeySet, testJwksKeySet := generateKeys()
+	strExpiredToken, _ := CreateJWTTestExpired(jwkKeyTest, "scp")
+	scopeGoodToken, _ := CreateJWTTestWithScopeClaim(jwkKey)
+	scpGoodToken, _ := CreateJWTTestWithScpClaim(jwkKey)
+	jsonJWKSKeySet, _ := json.Marshal(jwksKeySet)
+	testJsonJWKSKeySet, _ := json.Marshal(testJwksKeySet)
+	ts := createTestServer(t, jsonJWKSKeySet, testJsonJWKSKeySet)
+
+	defer ts.Close()
 	co = nil
 
 	c := context.Background()
@@ -392,6 +411,15 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	// TODO: Implement tags and uncomment initLogs()
 	config.Config = getCommonConfig()
 	config.Config.Jwt.Included_paths = []string{"/"}
+	_, _, jwkKey, _, jwksKeySet, testJwksKeySet := generateKeys()
+	token, _ := CreateJWTTestWithScpClaim(jwkKey)
+	jsonJWKSKeySet, _ := json.Marshal(jwksKeySet)
+	testJsonJWKSKeySet, _ := json.Marshal(testJwksKeySet)
+	ts := createTestServer(t, jsonJWKSKeySet, testJsonJWKSKeySet)
+
+	defer ts.Close()
+
+	config.Config.Jwt.Jwks_url = ts.URL+"/.well-known/jwks.json"
 
 	domainID := config.Config.Server.Upstream.GetDomainID()
 	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
@@ -401,8 +429,6 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
 
-	_, _, jwkKey, _, _, _ := generateKeys()
-	token, _ := CreateJWTTestWithScpClaimExpired(jwkKey)
 	req.Header.Add("Authorization", "Bearer "+token)
 
 	rr := httptest.NewRecorder()
