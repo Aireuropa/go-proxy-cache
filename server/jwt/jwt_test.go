@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
-	"fmt"
 	math "math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -49,30 +48,6 @@ func getCommonConfig() config.Configuration {
 		},
 	}
 }
-
-// jwt.KeySetProviderFunc()
-
-// type Key struct {
-// 	Kid string `json:"kid"`
-// 	Kty string `json:"kty"`
-// 	Use string `json:"use"`
-// 	N   string `json:"n"`
-// 	E   string `json:"e"`
-// }
-
-// type JWKS struct {
-// 	Keys []Key `json:"keys"`
-// }
-
-// type jwkKey struct {
-// 	Kid   string `json:"kid"`
-// 	Kty   string `json:"kty"`
-// 	N     string `json:"n"`
-// 	E     string `json:"e"`
-// 	Alg   string `json:"alg"`
-// 	Use   string `json:"use"`
-// 	Certs string `json:"x5c,omitempty"`
-// }
 
 // Creation JWTs
 func CreateJWTTestWithScopeClaim(key jwk.Key) (string, error) {
@@ -153,7 +128,7 @@ func generateJWKSTest(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
     if err != nil {
         return nil, err
     }
-    key.Set(jwk.KeyIDKey, strconv.Itoa(generateRandomNumber()))
+    key.Set(jwk.KeyIDKey, keyID)
     key.Set(jwk.KeyUsageKey, jwk.ForSignature)
     key.Set(jwk.AlgorithmKey, "RS256")
     jwks := jwk.NewSet()
@@ -166,7 +141,7 @@ func generateJWKSTest(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
     if err != nil {
         return nil, err
     }
-    key2.Set(jwk.KeyIDKey, strconv.Itoa(generateRandomNumber()))
+    key2.Set(jwk.KeyIDKey, keyID+"-"+strconv.Itoa(generateRandomNumber()))
     key2.Set(jwk.KeyUsageKey, jwk.ForSignature)
     key2.Set(jwk.AlgorithmKey, "RS256")
 	isAdded2 := jwks.Add(key2)
@@ -227,20 +202,20 @@ func generateKeys() (*rsa.PrivateKey, *rsa.PublicKey, jwk.Key, jwk.Set, jwk.Set,
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	publicKey := &privateKey.PublicKey
 	jwkKey, _ := jwk.New(privateKey)
-	jwkKey.Set("kid", "key-id-1")
-	jwks, _  := generateJWKS(publicKey, "key-id-1")
+	keyId := "key-id-1"
+	jwkKey.Set("kid", keyId)
+	jwks, _  := generateJWKS(publicKey, keyId)
 
 	jwkKeyTest, _ := jwk.New(privateKey)
-	jwkKeyTest.Set("kid", "key-id-1-test")
-	testJwks, _  := generateJWKSTest(publicKey, "key-id-1-test")
+	keyIdTest := "key-id-1-test"
+	jwkKeyTest.Set("kid", keyIdTest)
+	testJwks, _  := generateJWKSTest(publicKey, keyIdTest)
 	
 	return privateKey, publicKey, jwkKey, jwks, testJwks, jwkKeyTest
 }
 
 func TestValidateJWT(t *testing.T) {
-	_, _, jwkKey, jwks, _, _ := generateKeys()
-	_, _, _, _, testJwks, jwkKeyTest := generateKeys()
-	
+	_, _, jwkKey, jwks, testJwks, jwkKeyTest := generateKeys()
 
 	strExpiredToken, _ := CreateJWTTestWithScpClaimExpired(jwkKeyTest)
 	scopeGoodToken, _ := CreateJWTTestWithScopeClaim(jwkKey)
@@ -255,16 +230,12 @@ func TestValidateJWT(t *testing.T) {
 		case "/.well-known-test/jwks.json":
 			w.Write([]byte(testJsonJWKS))
 			w.WriteHeader(http.StatusOK)
-			fmt.Print("errer", w)
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintln(w)	
 			break
 		case "/.well-known/jwks.json":
 			w.Write([]byte(jsonJWKS))
 			w.WriteHeader(http.StatusOK)
-			fmt.Print("errer", w)
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintln(w)			
+			w.Header().Set("Content-Type", "application/json")	
 			break
 
 		case "/.bad-known/jwks.json":
