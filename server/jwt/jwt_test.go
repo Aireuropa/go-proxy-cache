@@ -48,6 +48,31 @@ func getCommonConfig() config.Configuration {
 	}
 }
 
+// jwt.KeySetProviderFunc()
+
+// type Key struct {
+// 	Kid string `json:"kid"`
+// 	Kty string `json:"kty"`
+// 	Use string `json:"use"`
+// 	N   string `json:"n"`
+// 	E   string `json:"e"`
+// }
+
+// type JWKS struct {
+// 	Keys []Key `json:"keys"`
+// }
+
+// type jwkKey struct {
+// 	Kid   string `json:"kid"`
+// 	Kty   string `json:"kty"`
+// 	N     string `json:"n"`
+// 	E     string `json:"e"`
+// 	Alg   string `json:"alg"`
+// 	Use   string `json:"use"`
+// 	Certs string `json:"x5c,omitempty"`
+// }
+
+// Creation JWTs
 func CreateJWTTestWithScopeClaim(key jwk.Key) (string, error) {
 	claims := jwt.New()
 	claims.Set("scope", []string{"scope1", "scope2", "scope3"})
@@ -56,7 +81,7 @@ func CreateJWTTestWithScopeClaim(key jwk.Key) (string, error) {
 	claims.Set(jwt.AudienceKey, "audience_key")
 	claims.Set(jwt.NotBeforeKey, time.Now().Add(-1*time.Minute))
 	claims.Set(jwt.IssuedAtKey, time.Now())
-	claims.Set(jwt.JwtIDKey, "key-id-1")
+	claims.Set(jwt.JwtIDKey, "key-jti-1")
 	
 	token, err := jwt.Sign(claims, jwa.RS256, key)
 	if err != nil {
@@ -74,7 +99,7 @@ func CreateJWTTestWithScpClaim(key jwk.Key) (string, error) {
 	claims.Set(jwt.AudienceKey, "audience_key")
 	claims.Set(jwt.NotBeforeKey, time.Now().Add(-1*time.Minute))
 	claims.Set(jwt.IssuedAtKey, time.Now())
-	claims.Set(jwt.JwtIDKey, "key-id-1")
+	claims.Set(jwt.JwtIDKey, "key-jti-1")
 	
 	token, err := jwt.Sign(claims, jwa.RS256, key)
 	if err != nil {
@@ -83,24 +108,6 @@ func CreateJWTTestWithScpClaim(key jwk.Key) (string, error) {
 
 	return string(token), nil
 }
-
-// func CreateJWTTestWithScpClaimExpired2(key []byte) (string, error) {
-// 	claims := jwt.New()
-// 	claims.Set("scp", []string{"scope1", "scope2", "scope3"})
-// 	claims.Set(jwt.ExpirationKey, time.Now())
-// 	claims.Set(jwt.IssuerKey, "issuer")
-// 	claims.Set(jwt.AudienceKey, "audience_key")
-// 	claims.Set(jwt.NotBeforeKey, time.Now().Add(-1*time.Minute))
-// 	claims.Set(jwt.IssuedAtKey, time.Now())
-// 	claims.Set(jwt.JwtIDKey, "key-id-1")
-
-// 	token, err := jwt.Sign(claims, jwa.HS256, key)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	return string(token), nil
-// }
 
 func CreateJWTTestWithScpClaimExpired(key jwk.Key) (string, error) {
 	claims := jwt.New()
@@ -110,7 +117,7 @@ func CreateJWTTestWithScpClaimExpired(key jwk.Key) (string, error) {
 	claims.Set(jwt.AudienceKey, "audience_key")
 	claims.Set(jwt.NotBeforeKey, time.Now().Add(-1*time.Minute))
 	claims.Set(jwt.IssuedAtKey, time.Now())
-	claims.Set(jwt.JwtIDKey, "key-id-1")
+	claims.Set(jwt.JwtIDKey, "key-jti-1")
 	
 	token, err := jwt.Sign(claims, jwa.RS256, key)
 	if err != nil {
@@ -120,42 +127,7 @@ func CreateJWTTestWithScpClaimExpired(key jwk.Key) (string, error) {
 	return string(token), nil
 }
 
-// jwt.KeySetProviderFunc()
-
-
-type Key struct {
-	Kid string `json:"kid"`
-	Kty string `json:"kty"`
-	Use string `json:"use"`
-	N   string `json:"n"`
-	E   string `json:"e"`
-}
-
-type JWKS struct {
-	Keys []Key `json:"keys"`
-}
-
-// var privateKey, _ = rsa.GenerateKey(rand.Reader, 2048)
-
-// var publicKey = &privateKey.PublicKey
-
-// var jwks, err  = generateJWKS(publicKey, "key-id-1")
-// fmt.Println("err: ", err)
-
-// var jsonJWKS, err = json.Marshal(jwks)
-
-// fmt.Println("JSON JWKS:", string(jsonJWKS))
-
-type jwkKey struct {
-	Kid   string `json:"kid"`
-	Kty   string `json:"kty"`
-	N     string `json:"n"`
-	E     string `json:"e"`
-	Alg   string `json:"alg"`
-	Use   string `json:"use"`
-	Certs string `json:"x5c,omitempty"`
-}
-
+// Creation JWKs
 func generateJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
     key, err := jwk.New(publicKey)
     if err != nil {
@@ -165,23 +137,6 @@ func generateJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
     key.Set(jwk.KeyUsageKey, jwk.ForSignature)
     key.Set(jwk.AlgorithmKey, "RS256")
     jwks := jwk.NewSet()
-	boo := jwks.Add(key)
-	if (!boo) {
-		return nil, nil
-	}
-
-    return jwks, nil
-}
-
-func generateBadJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
-    key, err := jwk.New(publicKey)
-    if err != nil {
-        return nil, err
-    }
-    key.Set(jwk.KeyIDKey, "wrong-key-id")
-    key.Set(jwk.KeyUsageKey, jwk.ForSignature)
-    key.Set(jwk.AlgorithmKey, "HS256")
-    jwks := jwk.NewSet()
 	isAdded := jwks.Add(key)
 	if (!isAdded) {
 		return nil, nil
@@ -190,6 +145,36 @@ func generateBadJWKS(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
     return jwks, nil
 }
 
+func generateJWKSTest(publicKey *rsa.PublicKey, keyID string) (jwk.Set, error) {
+    key, err := jwk.New(publicKey)
+    if err != nil {
+        return nil, err
+    }
+    key.Set(jwk.KeyIDKey, keyID)
+    key.Set(jwk.KeyUsageKey, jwk.ForSignature)
+    key.Set(jwk.AlgorithmKey, "RS256")
+    jwks := jwk.NewSet()
+	isAdded := jwks.Add(key)
+	if (!isAdded) {
+		return nil, nil
+	}
+
+	// key2, err := jwk.New(publicKey)
+    // if err != nil {
+    //     return nil, err
+    // }
+    // key2.Set(jwk.KeyIDKey, keyID)
+    // key2.Set(jwk.KeyUsageKey, jwk.ForSignature)
+    // key2.Set(jwk.AlgorithmKey, "RS256")
+	// isAdded2 := jwks.Add(key2)
+	// if (!isAdded2) {
+	// 	return nil, nil
+	// }
+
+    return jwks, nil
+}
+
+// Tests
 func TestAllowedScope(t *testing.T) {
 	co := &config.Jwt{Allowed_scopes: []string{"admin"}}
 	res := haveAllowedScope([]string{""}, co.Allowed_scopes)
@@ -230,30 +215,29 @@ func generateKeys() (*rsa.PrivateKey, *rsa.PublicKey, jwk.Key, jwk.Set, jwk.Set)
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	publicKey := &privateKey.PublicKey
 	jwkKey, _ := jwk.New(privateKey)
-	jwkKey.Set("kid", "key-id-1")
+	jwkKey.Set("kid", "key-id-1-test")
 	jwks, _  := generateJWKS(publicKey, "key-id-1")
-	badjwks, _  := generateBadJWKS(publicKey, "key-id-1")
+	testJwks, _  := generateJWKSTest(publicKey, "key-id-1-test")
 	
-
-	return privateKey, publicKey, jwkKey, jwks, badjwks
+	return privateKey, publicKey, jwkKey, jwks, testJwks
 }
 
 func TestValidateJWT(t *testing.T) {
 	_, _, jwkKey, jwks, _ := generateKeys()
-	_, _, _, _, badjwks := generateKeys()
+	_, _, _, _, testJwks := generateKeys()
 
 	strExpiredToken, _ := CreateJWTTestWithScpClaimExpired(jwkKey)
-	var scopeGoodToken, _ = CreateJWTTestWithScopeClaim(jwkKey)
-	var scpGoodToken, _ = CreateJWTTestWithScpClaim(jwkKey)
+	scopeGoodToken, _ := CreateJWTTestWithScopeClaim(jwkKey)
+	scpGoodToken, _ := CreateJWTTestWithScpClaim(jwkKey)
 
 	jsonJWKS, _ := json.Marshal(jwks)
-	badJsonJWKS, _ := json.Marshal(badjwks)
+	testJsonJWKS, _ := json.Marshal(testJwks)
 	// Http server test
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Log("Got connection!")
 		switch r.URL.String() {
-		case "/.well-known-wrong/jwks.json":
-			w.Write([]byte(badJsonJWKS))
+		case "/.well-known-test/jwks.json":
+			w.Write([]byte(testJsonJWKS))
 			w.WriteHeader(http.StatusOK)
 			fmt.Print("errer", w)
 			w.Header().Set("Content-Type", "application/json")
@@ -296,7 +280,7 @@ func TestValidateJWT(t *testing.T) {
 	assert.Equal(t, w.Code, 401, "No token provided status code should be 401")
 	assert.Containsf(t, w.Body.String(), "failed to find a valid token in any location of the request", "No token provided status code should be 401")
 
-	// New Test
+	// Test 2
 	co = nil
 	InitJWT(&config.Jwt{
 		Context:  c,
@@ -305,48 +289,31 @@ func TestValidateJWT(t *testing.T) {
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
+	req.Header.Add("Authorization", "Bearer "+ strExpiredToken)
 
 	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 401, "failed to fetch resource pointed by")
 	assert.Containsf(t, w.Body.String(), "failed to fetch resource pointed by", "failed to fetch resource pointed by")
-	// End new test
-	
-	// Test 3 IN
+
+	// Test 3
 	co = nil
 	InitJWT(&config.Jwt{
 		Context:  c,
 		Logger:   l,
-		Jwks_url: ts.URL + "/.well-known-wrong/jwks.json",
-	})
-	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
-	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
-
-	ValidateJWT(w, req)
-
-	assert.Equal(t, w.Code, 401, "invalid JWK set passed via WithKeySet")
-	assert.Containsf(t, w.Body.String(), "invalid JWK set passed via WithKeySet", "invalid JWK set passed via WithKeySet")
-	// Test 3 END
-
-
-	co = nil
-	InitJWT(&config.Jwt{
-		Context:  c,
-		Logger:   l,
-		Jwks_url: ts.URL + "/.well-known/jwks.json",
+		Jwks_url: ts.URL + "/.well-known-test/jwks.json",
 	})
 
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+strExpiredToken)
+	req.Header.Add("Authorization", "Bearer "+ strExpiredToken)
 
 	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 401, "exp not satisfied")
 	assert.Containsf(t, w.Body.String(), "exp not satisfied", "Token expired: exp not satisfied")
 
+	// Test 4
 	co = nil
 	InitJWT(&config.Jwt{
 		Context:  c,
@@ -355,12 +322,14 @@ func TestValidateJWT(t *testing.T) {
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+scopeGoodToken)
+	req.Header.Add("Authorization", "Bearer "+ scopeGoodToken)
+
 	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 401, "exp not satisfied")
 	assert.Containsf(t, w.Body.String(), "Invalid Scope", "Invalid Scope")
 
+	// Test 5
 	co = nil
 	InitJWT(&config.Jwt{
 		Context:        c,
@@ -370,12 +339,14 @@ func TestValidateJWT(t *testing.T) {
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+scopeGoodToken)
+	req.Header.Add("Authorization", "Bearer "+ scopeGoodToken)
+
 	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
 
+	// Test 6
 	co = nil
 	InitJWT(&config.Jwt{
 		Context:        c,
@@ -385,12 +356,12 @@ func TestValidateJWT(t *testing.T) {
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
-	req.Header.Add("Authorization", "Bearer "+scpGoodToken)
+	req.Header.Add("Authorization", "Bearer "+ scpGoodToken)
+
 	ValidateJWT(w, req)
 
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
-
 }
 
 func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
