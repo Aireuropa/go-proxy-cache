@@ -61,6 +61,13 @@ func Run(appVersion string, configFile string) {
 	// Init configs
 	config.InitConfigFromFileOrEnv(configFile)
 	config.Print()
+	jwt.InitJWT(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Included_paths: config.Config.Jwt.Included_paths,
+		Logger:         log.New(),
+	})
 
 	// Logging Hooks
 	log := logger.GetGlobal()
@@ -151,14 +158,6 @@ func InitServer(domain string, domainConfig config.Configuration) *http.Server {
 	if enableTimeoutHandler && timeout.Handler > 0 {
 		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
 	}
-
-	jwt.InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
 
 	server := &http.Server{
 		ReadTimeout:       timeout.Read * time.Second,
