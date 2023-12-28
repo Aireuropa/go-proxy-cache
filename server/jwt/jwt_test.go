@@ -94,7 +94,7 @@ func TestValidateJWT(t *testing.T) {
 	co = nil
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
@@ -112,11 +112,11 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Jwks_url = ts.URL + "/.bad-known/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
@@ -131,11 +131,11 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-multiple/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
@@ -150,11 +150,11 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
@@ -170,11 +170,11 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
@@ -190,11 +190,11 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
@@ -210,11 +210,11 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w = httptest.NewRecorder()
@@ -245,11 +245,11 @@ func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 	var muxMiddleware http.Handler = mux
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	h := JWTHandler(muxMiddleware)
 
@@ -287,11 +287,11 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 	var muxMiddleware http.Handler = mux
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	h := JWTHandler(muxMiddleware)
 
@@ -322,11 +322,11 @@ func TestJWTMiddlewareWithoutJWTValidation(t *testing.T) {
 	var muxMiddleware http.Handler = mux
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        config.Config.Jwt.Context,
+		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
 		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         config.Config.Jwt.Logger,
+		Logger:         log.New(),
 	})
 	h := JWTHandler(muxMiddleware)
 
