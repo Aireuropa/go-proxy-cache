@@ -66,17 +66,24 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 		allowedScopes = co.Allowed_scopes
 	}
 	haveAllowedScope := haveAllowedScope(scopes, allowedScopes)
-		if !haveAllowedScope {
-			errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
-			return http.ErrAbortHandler
-		}
+	if !haveAllowedScope {
+		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
+		return http.ErrAbortHandler
+	}
 	return nil
 
 }
 
 func JWTHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if IsIncluded(co.Included_paths, r.URL.Path) {
+		domainConfig, isDomain := config.DomainConf(r.URL.Host, r.URL.Scheme)
+		var includedPaths []string
+		if isDomain && domainConfig.Jwt.Included_paths != nil {
+			includedPaths = domainConfig.Jwt.Included_paths
+		} else {
+			includedPaths = co.Included_paths
+		}
+		if IsIncluded(includedPaths, r.URL.Path) {
 			err := ValidateJWT(w, r)
 			if err != nil {
 				return
