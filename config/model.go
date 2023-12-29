@@ -169,8 +169,8 @@ type Jwt struct {
 	Context        context.Context
 	Jwks_url       string	`yaml:"jwks_url"`
 	Logger         *logrus.Logger
-	Allowed_scopes []string	`yaml:"allowed_scopes" envconfig:"ALLOWED_SCOPES" default:"[]string{}"`
-	Included_paths []string	`yaml:"included_paths" envconfig:"INCLUDED_PATHS" default:"[]string{}"`
+	Allowed_scopes []string	`yaml:"allowed_scopes" envconfig:"ALLOWED_SCOPES"`
+	Included_paths []string	`yaml:"included_paths" envconfig:"INCLUDED_PATHS"`
 }
 
 type JwtError struct {
@@ -253,12 +253,5 @@ var Config Configuration = Configuration{
 	Log: Log{
 		TimeFormat: "2006/01/02 15:04:05",
 		Format:     `$host - $remote_addr - $remote_user $protocol $request_method "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $cached_status_label`,
-	},
-	Jwt: Jwt{
-		Context:        context.Background(),
-		Jwks_url:       "",
-		Logger:			logrus.New(),
-		Allowed_scopes: []string{},
-		Included_paths: []string{},
 	},
 }

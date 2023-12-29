@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jwt"
+	log "github.com/sirupsen/logrus"
 )
 
 var co *config.Jwt
@@ -24,6 +26,34 @@ func InitJWT(conifg *config.Jwt) {
 			jwk.WithFetchBackoff(backoff.Constant(backoff.WithInterval(time.Minute))),
 		)
 	}
+}
+
+func InitJWTWithDomainConf(domainConfig config.Configuration) {
+	var jwtUrl string
+	if domainConfig.Jwt.Jwks_url != "" {
+		jwtUrl = domainConfig.Jwt.Jwks_url
+	} else {
+		jwtUrl = config.Config.Jwt.Jwks_url
+	}
+	var allowedScopes []string
+	if domainConfig.Jwt.Allowed_scopes != nil {
+		allowedScopes = domainConfig.Jwt.Allowed_scopes
+	} else {
+		allowedScopes = config.Config.Jwt.Allowed_scopes
+	}
+	var includedPaths []string
+		if domainConfig.Jwt.Included_paths != nil {
+			includedPaths = domainConfig.Jwt.Included_paths
+		} else {
+			includedPaths = config.Config.Jwt.Included_paths
+		}
+	InitJWT(&config.Jwt{
+		Context:        context.Background(),
+		Jwks_url:       jwtUrl,
+		Allowed_scopes: allowedScopes,
+		Included_paths: includedPaths,
+		Logger:         log.New(),
+	})
 }
 
 func errorJson(resp http.ResponseWriter, statuscode int, error *config.JwtError) {
@@ -58,14 +88,7 @@ func ValidateJWT(w http.ResponseWriter, r *http.Request) error {
 		return http.ErrAbortHandler
 	}
 	scopes := getScopes(token)
-	domainConfig, isDomain := config.DomainConf(r.URL.Host, r.URL.Scheme)
-	var allowedScopes []string
-	if isDomain && domainConfig.Jwt.Allowed_scopes != nil {
-		allowedScopes = domainConfig.Jwt.Allowed_scopes
-	} else {
-		allowedScopes = co.Allowed_scopes
-	}
-	haveAllowedScope := haveAllowedScope(scopes, allowedScopes)
+	haveAllowedScope := haveAllowedScope(scopes, co.Allowed_scopes)
 	if !haveAllowedScope {
 		errorJson(w, http.StatusUnauthorized, &config.JwtError{ErrorCode: "InvalidScope", ErrorDescription: "Invalid Scope"})
 		return http.ErrAbortHandler
@@ -81,9 +104,11 @@ func JWTHandler(next http.Handler) http.Handler {
 		if isDomain && domainConfig.Jwt.Included_paths != nil {
 			includedPaths = domainConfig.Jwt.Included_paths
 		} else {
-			includedPaths = co.Included_paths
+			includedPaths = config.Config.Jwt.Included_paths
 		}
 		if IsIncluded(includedPaths, r.URL.Path) {
+			co = nil
+			InitJWTWithDomainConf(domainConfig)
 			err := ValidateJWT(w, r)
 			if err != nil {
 				return

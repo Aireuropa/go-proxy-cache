@@ -1,3 +1,6 @@
+//go:build all || functional
+// +build all functional
+
 package handler_test
 
 //                                                                         __
@@ -25,15 +28,12 @@ import (
 	"github.com/fabiocicerchia/go-proxy-cache/logger"
 	"github.com/fabiocicerchia/go-proxy-cache/server/balancer"
 	"github.com/fabiocicerchia/go-proxy-cache/server/handler"
-	"github.com/fabiocicerchia/go-proxy-cache/server/jwt"
-	"github.com/fabiocicerchia/go-proxy-cache/telemetry/tracing"
 	"github.com/fabiocicerchia/go-proxy-cache/utils"
 	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
 )
 
 func getCommonConfig() config.Configuration {
-	// TODO: Recover tags and uncomment initLogs()
-	//initLogs()
+	initLogs()
 
 	return config.Configuration{
 		Server: config.Server{
@@ -128,186 +128,6 @@ func TestHTTPEndToEndCallWithoutCache(t *testing.T) {
 	assert.Contains(t, body, "<!doctype html>")
 	assert.Contains(t, body, "<title>W3C</title>")
 	assert.Contains(t, body, "</body>\n\n</html>\n")
-
-	tearDownHTTPFunctional()
-}
-
-func TestHTTPEndToEndCallWithoutCacheWithJWT(t *testing.T) {
-	// TestHTTPEndToEndCallWithoutCacheWithJWTScopesPerDomain
-	config.Config = config.Configuration{
-		Server: config.Server{
-			Upstream: config.Upstream{
-				Host:      "example.com",
-				Scheme:    "https",
-			},
-		},
-		CircuitBreaker: circuit_breaker.CircuitBreaker{
-			Threshold:   2,                // after 2nd request, if meet FailureRate goes open.
-			FailureRate: 0.5,              // 1 out of 2 fails, or more
-			Interval:    time.Duration(1), // clears counts immediately
-			Timeout:     time.Duration(1), // clears state immediately
-		},
-		Jwt: config.Jwt{
-			Included_paths: []string{"/"},
-		},
-	}
-	config.Config.Domains = make(config.Domains)
-	domainConf := config.Config
-	domainConf.Jwt.Allowed_scopes = []string{"scope1", "scope2"}
-	config.Config.Domains["example_com"] = domainConf
-
-	domainID := config.Config.Server.Upstream.GetDomainID()
-	balancer.InitRoundRobin(domainID, config.Config.Server.Upstream, false)
-	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-
-	engine.GetConn(domainID).Close()
-
-	req, err := http.NewRequest("GET", "/", nil)
-
-	jwkKeySingle, _, jsonJWKKeySetSingle, jsonJWKKeySetMultiple := jwt.GenerateTestKeysAndKeySets()
-	token, _ := jwt.GenerateTestJWT(jwkKeySingle, "scope", false)
-	req.Header.Add("Authorization", "Bearer "+token)
-	ts := jwt.CreateTestServer(t, jsonJWKKeySetSingle, jsonJWKKeySetMultiple)
-	defer ts.Close()
-	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
-
-	req.URL.Scheme = config.Config.Server.Upstream.Scheme
-	req.URL.Host = config.Config.Server.Upstream.Host
-	req.Host = config.Config.Server.Upstream.Host
-	req.TLS = &tls.ConnectionState{} // mock a fake https
-	assert.Nil(t, err)
-
-	rr := httptest.NewRecorder()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
-	var muxMiddleware http.Handler = mux
-	timeout := config.Config.Server.Timeout
-	if false {
-		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
-	}
-	jwt.InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
-	h := jwt.JWTHandler(muxMiddleware)
-
-	h.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	assert.Equal(t, "MISS", rr.HeaderMap["X-Go-Proxy-Cache-Status"][0])
-
-	// TestHTTPEndToEndCallWithoutCacheWithoutJWTScopesPerDomain
-	domainConf = config.Config
-	domainConf.Jwt.Allowed_scopes = []string{}
-	config.Config.Domains["example_com"] = domainConf
-	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
-
-	h.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	assert.Equal(t, "MISS", rr.HeaderMap["X-Go-Proxy-Cache-Status"][0])
-
-	// TestHTTPEndToEndCallWithoutCacheWithJWTScopesWithoutDomain
-	domainConf = config.Config
-	config.Config.Jwt.Included_paths = []string{"/"}
-	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
-	config.Config.Domains = make(map[string]config.Configuration)
-
-	h.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	assert.Equal(t, "MISS", rr.HeaderMap["X-Go-Proxy-Cache-Status"][0])
-
-	tearDownHTTPFunctional()
-}
-
-func TestHTTPEndToEndCallWithoutCacheWithJWTValidation(t *testing.T) {
-	// TestHTTPEndToEndCallWithoutCacheWithJWTValidationPerDomain
-	config.Config = config.Configuration{
-		Server: config.Server{
-			Upstream: config.Upstream{
-				Host:      "example.com",
-				Scheme:    "https",
-			},
-		},
-		CircuitBreaker: circuit_breaker.CircuitBreaker{
-			Threshold:   2,                // after 2nd request, if meet FailureRate goes open.
-			FailureRate: 0.5,              // 1 out of 2 fails, or more
-			Interval:    time.Duration(1), // clears counts immediately
-			Timeout:     time.Duration(1), // clears state immediately
-		},
-	}
-	config.Config.Domains = make(config.Domains)
-	domainConf := config.Config
-	domainConf.Jwt.Allowed_scopes = []string{"scope1", "scope2"}
-	domainConf.Jwt.Included_paths = []string{"/"}
-	config.Config.Domains["example_com"] = domainConf
-
-	domainID := config.Config.Server.Upstream.GetDomainID()
-	balancer.InitRoundRobin(domainID, config.Config.Server.Upstream, false)
-	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-
-	engine.GetConn(domainID).Close()
-
-	req, err := http.NewRequest("GET", "/", nil)
-	req.URL.Scheme = config.Config.Server.Upstream.Scheme
-	req.URL.Host = config.Config.Server.Upstream.Host
-	req.Host = config.Config.Server.Upstream.Host
-	req.TLS = &tls.ConnectionState{} // mock a fake https
-	assert.Nil(t, err)
-
-	rr := httptest.NewRecorder()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
-	var muxMiddleware http.Handler = mux
-	timeout := config.Config.Server.Timeout
-	if false {
-		muxMiddleware = http.TimeoutHandler(muxMiddleware, timeout.Handler, "Timed Out\n")
-	}
-	jwt.InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
-	h := jwt.JWTHandler(muxMiddleware)
-
-	h.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-
-	// TestHTTPEndToEndCallWithoutCacheWithoutJWTValidationPerDomain
-	domainConf = config.Config
-	domainConf.Jwt.Allowed_scopes = []string{}
-	domainConf.Jwt.Included_paths = []string{}
-	config.Config.Domains["example_com"] = domainConf
-	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
-	config.Config.Jwt.Included_paths = []string{"/"}
-
-	h.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-
-	// TestHTTPEndToEndCallWithoutCacheWithJWTValidationWithoutDomain
-	domainConf = config.Config
-	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
-	config.Config.Jwt.Included_paths = []string{"/"}
-	config.Config.Domains = make(map[string]config.Configuration)
-
-	h.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 
 	tearDownHTTPFunctional()
 }

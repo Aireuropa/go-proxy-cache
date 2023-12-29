@@ -61,13 +61,6 @@ func Run(appVersion string, configFile string) {
 	// Init configs
 	config.InitConfigFromFileOrEnv(configFile)
 	config.Print()
-	jwt.InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
 
 	// Logging Hooks
 	log := logger.GetGlobal()

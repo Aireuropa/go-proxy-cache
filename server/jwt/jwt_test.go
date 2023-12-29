@@ -1,5 +1,7 @@
 package jwt
 
+// TODO: Add ascii art
+
 import (
 	"context"
 	"encoding/json"
@@ -91,8 +93,8 @@ func TestValidateJWT(t *testing.T) {
 	defer ts.Close()
 
 	// Test 1
-	co = nil
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
+	co = nil
 	InitJWT(&config.Jwt{
 		Context:        context.Background(),
 		Jwks_url:       config.Config.Jwt.Jwks_url,
@@ -243,14 +245,6 @@ func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
 	var muxMiddleware http.Handler = mux
-	co = nil
-	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
 	h := JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
@@ -278,21 +272,12 @@ func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
 
 	req, err := http.NewRequest("GET", "/", nil)
 	assert.Nil(t, err)
-
 	req.Header.Add("Authorization", "Bearer "+token)
-
+	
 	rr := httptest.NewRecorder()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
 	var muxMiddleware http.Handler = mux
-	co = nil
-	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
 	h := JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
@@ -320,14 +305,6 @@ func TestJWTMiddlewareWithoutJWTValidation(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
 	var muxMiddleware http.Handler = mux
-	co = nil
-	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
-		Included_paths: config.Config.Jwt.Included_paths,
-		Logger:         log.New(),
-	})
 	h := JWTHandler(muxMiddleware)
 
 	h.ServeHTTP(rr, req)
@@ -337,12 +314,3 @@ func TestJWTMiddlewareWithoutJWTValidation(t *testing.T) {
 
 	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
 }
-
-// func TestJWTMiddlewareEndToEnd(t *testing.T) {
-// 	req, _ := http.NewRequest("GET", "http://127.0.0.1:50080/", nil)
-
-// 	res, err := http.DefaultClient.Do(req)
-
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
-// }
