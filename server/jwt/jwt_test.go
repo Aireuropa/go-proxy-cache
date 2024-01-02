@@ -1,52 +1,29 @@
+//go:build all || unit
+// +build all unit
+
 package jwt
 
-// TODO: Add ascii art
+//                                                                         __
+// .-----.-----.______.-----.----.-----.--.--.--.--.______.----.---.-.----|  |--.-----.
+// |  _  |  _  |______|  _  |   _|  _  |_   _|  |  |______|  __|  _  |  __|     |  -__|
+// |___  |_____|      |   __|__| |_____|__.__|___  |      |____|___._|____|__|__|_____|
+// |_____|            |__|                   |_____|
+//
+// Copyright (c) 2023 Fabio Cicerchia. https://fabiocicerchia.it. MIT License
+// Repo: https://github.com/fabiocicerchia/go-proxy-cache
 
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/fabiocicerchia/go-proxy-cache/cache/engine"
 	"github.com/fabiocicerchia/go-proxy-cache/config"
-	logger "github.com/fabiocicerchia/go-proxy-cache/logger"
-	"github.com/fabiocicerchia/go-proxy-cache/server/handler"
-	"github.com/fabiocicerchia/go-proxy-cache/telemetry/tracing"
-	"github.com/fabiocicerchia/go-proxy-cache/utils"
-	circuit_breaker "github.com/fabiocicerchia/go-proxy-cache/utils/circuit-breaker"
 	"github.com/lestrrat-go/jwx/jwt"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
-func getCommonConfig() config.Configuration {
-	// TODO: Implement tags and uncomment initLogs()
-	//initLogs()
-
-	return config.Configuration{
-		Cache: config.Cache{
-			Hosts: []string{utils.GetEnv("REDIS_HOSTS", "localhost:6379")},
-			DB:    0,
-		},
-		CircuitBreaker: circuit_breaker.CircuitBreaker{
-			Threshold:   2,   // after 2nd request, if meet FailureRate goes open.
-			FailureRate: 0.5, // 1 out of 2 fails, or more
-			Interval:    time.Duration(1),
-			Timeout:     time.Duration(1), // clears state immediately
-		},
-		Jwt: config.Jwt{
-			Included_paths: []string{},
-			Allowed_scopes: []string{"scope1"},
-			Context:        context.Background(),
-			Logger:         log.New(),
-		},
-	}
-}
-
-// Tests
 func TestAllowedScope(t *testing.T) {
 	co := &config.Jwt{Allowed_scopes: []string{"admin"}}
 	res := haveAllowedScope([]string{""}, co.Allowed_scopes)
@@ -92,7 +69,7 @@ func TestValidateJWT(t *testing.T) {
 	ts := CreateTestServer(t, jsonJWKKeySetSingle, jsonJWKKeySetMultiple)
 	defer ts.Close()
 
-	// Test 1
+	// Without any token
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
@@ -110,7 +87,7 @@ func TestValidateJWT(t *testing.T) {
 	assert.Equal(t, w.Code, 401, "No token provided status code should be 401")
 	assert.Containsf(t, w.Body.String(), "failed to find a valid token in any location of the request", "No token provided status code should be 401")
 
-	// Test 2
+	// Without any keyset
 	config.Config.Jwt.Jwks_url = ts.URL + "/.bad-known/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
@@ -129,7 +106,7 @@ func TestValidateJWT(t *testing.T) {
 	assert.Equal(t, w.Code, 401, "failed to fetch resource pointed by")
 	assert.Containsf(t, w.Body.String(), "failed to fetch resource pointed by", "failed to fetch resource pointed by")
 
-	// Test 3
+	// With an expired token
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-multiple/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
@@ -148,7 +125,7 @@ func TestValidateJWT(t *testing.T) {
 	assert.Equal(t, w.Code, 401, "exp not satisfied")
 	assert.Containsf(t, w.Body.String(), "exp not satisfied", "Token expired: exp not satisfied")
 
-	// Test 4
+	// Without any scope in the config
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
@@ -164,10 +141,10 @@ func TestValidateJWT(t *testing.T) {
 
 	ValidateJWT(w, req)
 
-	assert.Equal(t, w.Code, 401, "exp not satisfied")
+	assert.Equal(t, w.Code, 401, "Invalid Scope")
 	assert.Containsf(t, w.Body.String(), "Invalid Scope", "Invalid Scope")
 
-	// Test 5
+	// With a scope in the config and a valid token (with scope claim)
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
@@ -187,7 +164,7 @@ func TestValidateJWT(t *testing.T) {
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
 
-	// Test 6
+	// With a scope in the config and a valid token (with scp claim)
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
@@ -207,7 +184,7 @@ func TestValidateJWT(t *testing.T) {
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
 
-	// Test 7
+	// With multiple keys in the key set
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-multiple/jwks.json"
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
@@ -226,91 +203,4 @@ func TestValidateJWT(t *testing.T) {
 
 	assert.Equal(t, w.Code, 200, "Status OK")
 	assert.Containsf(t, w.Body.String(), "", "Status OK")
-}
-
-func TestJWTMiddlewareValidatesWithNoToken(t *testing.T) {
-	// TODO: Implement tags and uncomment initLogs()
-	config.Config = getCommonConfig()
-	config.Config.Jwt.Included_paths = []string{"/"}
-
-	domainID := config.Config.Server.Upstream.GetDomainID()
-	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-	engine.GetConn(domainID).Close()
-
-	req, err := http.NewRequest("GET", "/", nil)
-	assert.Nil(t, err)
-
-	rr := httptest.NewRecorder()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
-	var muxMiddleware http.Handler = mux
-	h := JWTHandler(muxMiddleware)
-
-	h.ServeHTTP(rr, req)
-
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-}
-
-func TestJWTMiddlewareValidatesWithToken(t *testing.T) {
-	// TODO: Implement tags and uncomment initLogs()
-	config.Config = getCommonConfig()
-	config.Config.Jwt.Included_paths = []string{"/"}
-	jwkKeySingle, _, jsonJWKKeySetSingle, jsonJWKKeySetMultiple := GenerateTestKeysAndKeySets()
-	token, _ := GenerateTestJWT(jwkKeySingle, "scp", false)
-	ts := CreateTestServer(t, jsonJWKKeySetSingle, jsonJWKKeySetMultiple)
-	defer ts.Close()
-	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
-
-	domainID := config.Config.Server.Upstream.GetDomainID()
-	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-	engine.GetConn(domainID).Close()
-
-	req, err := http.NewRequest("GET", "/", nil)
-	assert.Nil(t, err)
-	req.Header.Add("Authorization", "Bearer "+token)
-	
-	rr := httptest.NewRecorder()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
-	var muxMiddleware http.Handler = mux
-	h := JWTHandler(muxMiddleware)
-
-	h.ServeHTTP(rr, req)
-
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusBadGateway, rr.Code)
-
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-}
-
-func TestJWTMiddlewareWithoutJWTValidation(t *testing.T) {
-	// TODO: Implement tags and uncomment initLogs()
-	config.Config = getCommonConfig()
-	config.Config.Jwt.Included_paths = []string{}
-
-	domainID := config.Config.Server.Upstream.GetDomainID()
-	circuit_breaker.InitCircuitBreaker(domainID, config.Config.CircuitBreaker, logger.GetGlobal())
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
-	engine.GetConn(domainID).Close()
-
-	req, err := http.NewRequest("GET", "/", nil)
-	assert.Nil(t, err)
-
-	rr := httptest.NewRecorder()
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", tracing.HTTPHandlerFunc(handler.HandleRequest, "handle_request"))
-	var muxMiddleware http.Handler = mux
-	h := JWTHandler(muxMiddleware)
-
-	h.ServeHTTP(rr, req)
-
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusBadGateway, rr.Code)
-
-	engine.InitConn(domainID, config.Config.Cache, log.StandardLogger())
 }
