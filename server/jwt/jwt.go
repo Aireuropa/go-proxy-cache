@@ -48,10 +48,10 @@ func InitJWTWithDomainConf(domainConfig config.Configuration) {
 			includedPaths = config.Config.Jwt.Included_paths
 		}
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       jwtUrl,
-		Allowed_scopes: allowedScopes,
 		Included_paths: includedPaths,
+		Allowed_scopes: allowedScopes,
+		Jwks_url:       jwtUrl,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 }

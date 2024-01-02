@@ -166,11 +166,11 @@ type DomainSet struct {
 }
 
 type Jwt struct {
-	Context        context.Context
-	Jwks_url       string	`yaml:"jwks_url"`
-	Logger         *logrus.Logger
-	Allowed_scopes []string	`yaml:"allowed_scopes" envconfig:"ALLOWED_SCOPES"`
 	Included_paths []string	`yaml:"included_paths" envconfig:"INCLUDED_PATHS"`
+	Allowed_scopes []string	`yaml:"allowed_scopes" envconfig:"ALLOWED_SCOPES"`
+	Jwks_url       string	`yaml:"jwks_url"`
+	Context        context.Context
+	Logger         *logrus.Logger
 }
 
 type JwtError struct {

@@ -38,10 +38,10 @@ func getCommonConfig() config.Configuration {
 			Timeout:     time.Duration(1), // clears state immediately
 		},
 		Jwt: config.Jwt{
+			Included_paths: []string{},
+			Allowed_scopes: []string{"scope1"},
 			Context:        context.Background(),
 			Logger:         log.New(),
-			Allowed_scopes: []string{"scope1"},
-			Included_paths: []string{},
 		},
 	}
 }
@@ -96,10 +96,10 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
@@ -114,10 +114,10 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Jwks_url = ts.URL + "/.bad-known/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
@@ -133,10 +133,10 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-multiple/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
@@ -152,10 +152,10 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Jwks_url = ts.URL + "/.well-known-single/jwks.json"
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
@@ -172,10 +172,10 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
@@ -192,10 +192,10 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)
@@ -212,10 +212,10 @@ func TestValidateJWT(t *testing.T) {
 	config.Config.Jwt.Allowed_scopes = []string{"scope1"}
 	co = nil
 	InitJWT(&config.Jwt{
-		Context:        context.Background(),
-		Jwks_url:       config.Config.Jwt.Jwks_url,
-		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
 		Included_paths: config.Config.Jwt.Included_paths,
+		Allowed_scopes: config.Config.Jwt.Allowed_scopes,
+		Jwks_url:       config.Config.Jwt.Jwks_url,
+		Context:        context.Background(),
 		Logger:         log.New(),
 	})
 	req = httptest.NewRequest("GET", "http://example.com/foo", nil)

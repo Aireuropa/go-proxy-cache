@@ -10,7 +10,6 @@ package config
 // Repo: https://github.com/fabiocicerchia/go-proxy-cache
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -221,11 +220,9 @@ func (c *Configuration) copyOverWithLog(overrides Log) {
 
 // --- JWT.
 func (c *Configuration) copyOverWithJwt(overrides Jwt) {
-	c.Jwt.Context = utils.Coalesce(overrides.Context, c.Jwt.Context).(context.Context)
-	c.Jwt.Jwks_url = utils.Coalesce(overrides.Jwks_url, c.Jwt.Jwks_url).(string)
-	c.Jwt.Logger = utils.Coalesce(overrides.Logger, c.Jwt.Logger).(*log.Logger)
-	c.Jwt.Allowed_scopes = utils.Coalesce(overrides.Allowed_scopes, c.Jwt.Allowed_scopes).([]string)
 	c.Jwt.Included_paths = utils.Coalesce(overrides.Included_paths, c.Jwt.Included_paths).([]string)
+	c.Jwt.Allowed_scopes = utils.Coalesce(overrides.Allowed_scopes, c.Jwt.Allowed_scopes).([]string)
+	c.Jwt.Jwks_url = utils.Coalesce(overrides.Jwks_url, c.Jwt.Jwks_url).(string)
 }
 
 // Print - Shows the current configuration.
