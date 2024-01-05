@@ -46,6 +46,9 @@ domains:
         host: example.com
         health_check:
           scheme: http
+    jwt:
+      jwks_refresh_interval: 60
+      jwks_url: http://testJwksUrlYaml.com
 
   example_org:
     server:
